@@ -1,0 +1,94 @@
+name: 'Health Check'
+description: 'Perform health check on deployed application'
+author: 'Dokploy Actions'
+
+branding:
+  icon: 'heart'
+  color: 'green'
+
+inputs:
+  health-check-url:
+    description: 'Health check URL (e.g., https://app.com/health)'
+    required: true
+  max-retries:
+    description: 'Maximum number of retries'
+    required: false
+    default: '10'
+  retry-interval:
+    description: 'Interval between retries in seconds'
+    required: false
+    default: '6'
+  expected-status:
+    description: 'Expected HTTP status code'
+    required: false
+    default: '200'
+  timeout:
+    description: 'Request timeout in seconds'
+    required: false
+    default: '10'
+
+outputs:
+  health-status:
+    description: 'Health check status (healthy/unhealthy)'
+    value: ${{ steps.check.outputs.status }}
+  http-code:
+    description: 'HTTP status code received'
+    value: ${{ steps.check.outputs.http-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Perform health check
+      id: check
+      shell: bash
+      run: |
+        echo "🏥 Performing health check..."
+        echo "URL: ${{ inputs.health-check-url }}"
+        echo "Max retries: ${{ inputs.max-retries }}"
+        echo "Retry interval: ${{ inputs.retry-interval }}s"
+        echo "Expected status: ${{ inputs.expected-status }}"
+        
+        max_retries=${{ inputs.max-retries }}
+        retry_interval=${{ inputs.retry-interval }}
+        expected_status=${{ inputs.expected-status }}
+        timeout=${{ inputs.timeout }}
+        
+        for i in $(seq 1 $max_retries); do
+          echo "Attempt $i/$max_retries..."
+          
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time $timeout \
+            --connect-timeout 5 \
+            "${{ inputs.health-check-url }}" || echo "000")
+          
+          echo "http-code=$http_code" >> $GITHUB_OUTPUT
+          
+          if [ "$http_code" = "$expected_status" ]; then
+            echo "✅ Health check passed (HTTP $http_code)"
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "⚠️ Health check failed (HTTP $http_code), expected $expected_status"
+          
+          if [ $i -lt $max_retries ]; then
+            echo "Retrying in ${retry_interval}s..."
+            sleep $retry_interval
+          fi
+        done
+        
+        echo "❌ Health check failed after $max_retries attempts"
+        echo "status=unhealthy" >> $GITHUB_OUTPUT
+        exit 1
+
+    - name: Health check summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## 🏥 Health Check Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: ${{ inputs.health-check-url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ steps.check.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **HTTP Code**: ${{ steps.check.outputs.http-code }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Expected**: ${{ inputs.expected-status }}" >> $GITHUB_STEP_SUMMARY
+

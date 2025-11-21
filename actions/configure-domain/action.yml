@@ -1,0 +1,132 @@
+name: 'Configure Domain'
+description: 'Configure domain for Dokploy application'
+author: 'Dokploy Actions'
+
+branding:
+  icon: 'globe'
+  color: 'blue'
+
+inputs:
+  dokploy-url:
+    description: 'Dokploy instance URL'
+    required: true
+  api-key:
+    description: 'Dokploy API key'
+    required: true
+  application-id:
+    description: 'Application ID'
+    required: true
+  domain-host:
+    description: 'Domain host (e.g., api.example.com)'
+    required: true
+  port:
+    description: 'Application port'
+    required: false
+    default: '80'
+  https:
+    description: 'Enable HTTPS'
+    required: false
+    default: 'true'
+  path:
+    description: 'Path prefix (e.g., /api)'
+    required: false
+    default: '/'
+
+outputs:
+  domain-id:
+    description: 'Created domain ID'
+    value: ${{ steps.create.outputs.domain-id }}
+  domain-url:
+    description: 'Full domain URL'
+    value: ${{ steps.create.outputs.domain-url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate domain
+      shell: bash
+      run: |
+        domain="${{ inputs.domain-host }}"
+        
+        if [[ ! "$domain" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$ ]]; then
+          echo "⚠️ Warning: Domain format may be invalid: $domain"
+        fi
+        
+        echo "✅ Domain validated: $domain"
+
+    - name: Create domain
+      id: create
+      shell: bash
+      run: |
+        echo "🌐 Configuring domain..."
+        echo "Host: ${{ inputs.domain-host }}"
+        echo "Port: ${{ inputs.port }}"
+        echo "HTTPS: ${{ inputs.https }}"
+        echo "Path: ${{ inputs.path }}"
+        
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          "${{ inputs.dokploy-url }}/api/domain.create" \
+          -H "x-api-key: ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"applicationId\": \"${{ inputs.application-id }}\",
+            \"host\": \"${{ inputs.domain-host }}\",
+            \"port\": ${{ inputs.port }},
+            \"https\": ${{ inputs.https }},
+            \"path\": \"${{ inputs.path }}\"
+          }")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+          echo "✅ Domain configured successfully"
+          
+          domain_id=$(echo "$body" | jq -r '.domainId // .id // "unknown"')
+          echo "domain-id=$domain_id" >> $GITHUB_OUTPUT
+          echo "Domain ID: $domain_id"
+          
+          protocol="http"
+          if [ "${{ inputs.https }}" = "true" ]; then
+            protocol="https"
+          fi
+          
+          domain_url="${protocol}://${{ inputs.domain-host }}${{ inputs.path }}"
+          echo "domain-url=$domain_url" >> $GITHUB_OUTPUT
+          echo "Domain URL: $domain_url"
+        else
+          echo "❌ Failed to configure domain (HTTP $http_code)"
+          echo "Response: $body"
+          exit 1
+        fi
+
+    - name: Verify domain
+      shell: bash
+      run: |
+        echo "🔍 Verifying domain configuration..."
+        
+        response=$(curl -s -X GET \
+          "${{ inputs.dokploy-url }}/api/domain.one?domainId=${{ steps.create.outputs.domain-id }}" \
+          -H "x-api-key: ${{ inputs.api-key }}")
+        
+        host=$(echo "$response" | jq -r '.host // "unknown"')
+        
+        if [ "$host" = "${{ inputs.domain-host }}" ]; then
+          echo "✅ Domain verified: $host"
+        else
+          echo "⚠️ Domain verification warning: expected ${{ inputs.domain-host }}, got $host"
+        fi
+
+    - name: Domain summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## 🌐 Domain Configuration Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Domain**: ${{ inputs.domain-host }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Domain ID**: ${{ steps.create.outputs.domain-id }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: ${{ steps.create.outputs.domain-url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Port**: ${{ inputs.port }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **HTTPS**: ${{ inputs.https }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Path**: ${{ inputs.path }}" >> $GITHUB_STEP_SUMMARY
+

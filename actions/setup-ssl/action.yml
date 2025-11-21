@@ -1,0 +1,151 @@
+name: 'Setup SSL/TLS'
+description: 'Configure SSL/TLS certificates for Dokploy application'
+author: 'Dokploy Actions'
+
+branding:
+  icon: 'lock'
+  color: 'green'
+
+inputs:
+  dokploy-url:
+    description: 'Dokploy instance URL'
+    required: true
+  api-key:
+    description: 'Dokploy API key'
+    required: true
+  application-id:
+    description: 'Application ID'
+    required: true
+  domain-id:
+    description: 'Domain ID to configure SSL for'
+    required: true
+  certificate-type:
+    description: 'Certificate type (letsencrypt or custom)'
+    required: false
+    default: 'letsencrypt'
+  email:
+    description: 'Email for Let''s Encrypt notifications'
+    required: false
+    default: ''
+  certificate:
+    description: 'Custom SSL certificate (PEM format)'
+    required: false
+    default: ''
+  private-key:
+    description: 'Custom SSL private key (PEM format)'
+    required: false
+    default: ''
+
+outputs:
+  ssl-status:
+    description: 'SSL configuration status'
+    value: ${{ steps.configure.outputs.status }}
+  certificate-type:
+    description: 'Type of certificate configured'
+    value: ${{ inputs.certificate-type }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ "${{ inputs.certificate-type }}" = "letsencrypt" ]; then
+          if [ -z "${{ inputs.email }}" ]; then
+            echo "❌ Email is required for Let's Encrypt"
+            exit 1
+          fi
+        elif [ "${{ inputs.certificate-type }}" = "custom" ]; then
+          if [ -z "${{ inputs.certificate }}" ] || [ -z "${{ inputs.private-key }}" ]; then
+            echo "❌ Certificate and private key are required for custom SSL"
+            exit 1
+          fi
+        else
+          echo "❌ Invalid certificate type: ${{ inputs.certificate-type }}"
+          exit 1
+        fi
+        
+        echo "✅ Inputs validated"
+
+    - name: Configure Let's Encrypt
+      if: inputs.certificate-type == 'letsencrypt'
+      id: letsencrypt
+      shell: bash
+      run: |
+        echo "🔒 Configuring Let's Encrypt SSL..."
+        
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          "${{ inputs.dokploy-url }}/api/domain.generateCertificate" \
+          -H "x-api-key: ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"domainId\": \"${{ inputs.domain-id }}\",
+            \"email\": \"${{ inputs.email }}\"
+          }")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+          echo "✅ Let's Encrypt certificate generated successfully"
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to generate certificate (HTTP $http_code)"
+          echo "Response: $body"
+          echo "status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Upload custom certificate
+      if: inputs.certificate-type == 'custom'
+      id: custom
+      shell: bash
+      run: |
+        echo "🔒 Uploading custom SSL certificate..."
+        
+        response=$(curl -s -w "\n%{http_code}" -X POST \
+          "${{ inputs.dokploy-url }}/api/domain.uploadCertificate" \
+          -H "x-api-key: ${{ inputs.api-key }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"domainId\": \"${{ inputs.domain-id }}\",
+            \"certificate\": \"${{ inputs.certificate }}\",
+            \"privateKey\": \"${{ inputs.private-key }}\"
+          }")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+          echo "✅ Custom certificate uploaded successfully"
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to upload certificate (HTTP $http_code)"
+          echo "Response: $body"
+          echo "status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Set output
+      id: configure
+      shell: bash
+      run: |
+        if [ "${{ inputs.certificate-type }}" = "letsencrypt" ]; then
+          echo "status=${{ steps.letsencrypt.outputs.status }}" >> $GITHUB_OUTPUT
+        else
+          echo "status=${{ steps.custom.outputs.status }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: SSL summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## 🔒 SSL Configuration Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Domain ID**: ${{ inputs.domain-id }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Certificate Type**: ${{ inputs.certificate-type }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ steps.configure.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ inputs.certificate-type }}" = "letsencrypt" ]; then
+          echo "- **Email**: ${{ inputs.email }}" >> $GITHUB_STEP_SUMMARY
+        fi
+

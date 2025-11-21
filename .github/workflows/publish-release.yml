@@ -1,0 +1,143 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate version format
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.0.0"
+            exit 1
+          fi
+          
+          echo "✅ Version format valid: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Run tests
+        uses: ./.github/workflows/test-actions.yml
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          ## 🚀 Dokploy GitHub Actions - ${{ steps.version.outputs.version }}
+          
+          ### 📦 Available Actions
+          
+          - **Deploy**: `SSanjeevi/dokployaction/actions/deploy@${{ steps.version.outputs.version }}`
+          - **Health Check**: `SSanjeevi/dokployaction/actions/health-check@${{ steps.version.outputs.version }}`
+          - **Cleanup Containers**: `SSanjeevi/dokployaction/actions/cleanup-containers@${{ steps.version.outputs.version }}`
+          - **Rollback**: `SSanjeevi/dokployaction/actions/rollback@${{ steps.version.outputs.version }}`
+          - **Setup SSL**: `SSanjeevi/dokployaction/actions/setup-ssl@${{ steps.version.outputs.version }}`
+          - **Configure Domain**: `SSanjeevi/dokployaction/actions/configure-domain@${{ steps.version.outputs.version }}`
+          
+          ### 📚 Documentation
+          
+          - [Quick Start Guide](https://github.com/SSanjeevi/dokployaction/blob/main/QUICK_START.md)
+          - [Examples](https://github.com/SSanjeevi/dokployaction/tree/main/examples)
+          - [API Reference](https://github.com/SSanjeevi/dokployaction/blob/main/docs/API_REFERENCE.md)
+          
+          ### 🔧 Usage Example
+          
+          ```yaml
+          - name: Deploy to Dokploy
+            uses: SSanjeevi/dokployaction/actions/deploy@${{ steps.version.outputs.version }}
+            with:
+              dokploy-url: ${{ secrets.DOKPLOY_URL }}
+              api-key: ${{ secrets.DOKPLOY_API_KEY }}
+              application-id: 'your-app-id'
+              docker-image: 'ghcr.io/user/app:latest'
+          ```
+          
+          ### 📋 What's Changed
+          
+          See [CHANGELOG.md](https://github.com/SSanjeevi/dokployaction/blob/main/CHANGELOG.md) for detailed changes.
+          EOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-major-tag:
+    name: Update Major Version Tag
+    runs-on: ubuntu-latest
+    needs: create-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update major version tag
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          
+          # Extract major version (e.g., v1.2.3 -> v1)
+          MAJOR_VERSION=$(echo $VERSION | cut -d. -f1)
+          
+          echo "Creating/updating major version tag: $MAJOR_VERSION"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Force update the major version tag
+          git tag -fa $MAJOR_VERSION -m "Update $MAJOR_VERSION to $VERSION"
+          git push origin $MAJOR_VERSION --force
+          
+          echo "✅ Updated $MAJOR_VERSION tag to point to $VERSION"

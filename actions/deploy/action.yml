@@ -1,0 +1,52 @@
+name: 'Deploy to Dokploy'
+description: 'Deploy a Docker image to Dokploy application (uses TypeScript action)'
+author: 'Dokploy Actions'
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
+
+inputs:
+  dokploy-url:
+    description: 'Dokploy instance URL'
+    required: true
+  api-key:
+    description: 'Dokploy API key'
+    required: true
+  application-id:
+    description: 'Application ID to deploy'
+    required: true
+  docker-image:
+    description: 'Docker image to deploy (e.g., ghcr.io/user/app:latest)'
+    required: true
+  wait-for-deployment:
+    description: 'Wait for deployment to complete'
+    required: false
+    default: 'true'
+  deployment-timeout:
+    description: 'Deployment timeout in seconds'
+    required: false
+    default: '300'
+
+outputs:
+  deployment-id:
+    description: 'Deployment ID'
+    value: ${{ steps.deploy.outputs.deployment-id }}
+  deployment-status:
+    description: 'Deployment status'
+    value: ${{ steps.deploy.outputs.deployment-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Deploy using TypeScript action
+      id: deploy
+      uses: ../../  # Reference to main TypeScript action
+      with:
+        dokploy-url: ${{ inputs.dokploy-url }}
+        api-key: ${{ inputs.api-key }}
+        application-id: ${{ inputs.application-id }}
+        docker-image: ${{ inputs.docker-image }}
+        wait-for-deployment: ${{ inputs.wait-for-deployment }}
+        deployment-timeout: ${{ inputs.deployment-timeout }}
+

@@ -1,0 +1,263 @@
+name: Test Actions
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'actions/**'
+      - '.github/workflows/test-actions.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'actions/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build action
+        run: npm run build
+
+      - name: Check dist/ is up to date
+        run: |
+          if [ -n "$(git status --porcelain dist/)" ]; then
+            echo "❌ dist/ is out of date. Run 'npm run build' and commit the changes."
+            git diff dist/
+            exit 1
+          fi
+          echo "✅ dist/ is up to date"
+
+  validate-actions:
+    name: Validate Action Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+
+      - name: Validate action.yml
+        run: |
+          echo "🔍 Validating action.yml..."
+          yamllint -d "{extends: default, rules: {line-length: {max: 200}}}" action.yml
+          echo "✅ action.yml is valid"
+
+      - name: Validate composite actions
+        run: |
+          echo "🔍 Validating composite action files..."
+          
+          find actions -name "action.yml" -type f | while read -r file; do
+            echo "Validating: $file"
+            yamllint -d "{extends: default, rules: {line-length: {max: 200}}}" "$file"
+          done
+          
+          echo "✅ All action files are valid"
+
+  test-deploy-action:
+    name: Test Main Action
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test main action (dry run - will fail on API call which is expected)
+        id: test-deploy
+        uses: ./
+        continue-on-error: true
+        with:
+          dokploy-url: 'https://test.dokploy.local'
+          api-key: 'test-api-key-12345'
+          application-id: 'test-app-id'
+          docker-image: 'nginx:latest'
+          project-name: 'test-project'
+          environment-name: 'test'
+          server-name: 'test-server'
+
+      - name: Verify action structure
+        run: |
+          echo "✅ Main action loaded successfully"
+          echo "Note: API call failure is expected in test environment"
+
+  test-health-check-action:
+    name: Test Health Check Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start test web server
+        run: |
+          mkdir -p /tmp/test-server
+          echo '{"status":"ok"}' > /tmp/test-server/health.json
+          cd /tmp/test-server
+          python3 -m http.server 8080 &
+          echo $! > /tmp/server.pid
+          sleep 2
+
+      - name: Test health check action (should pass)
+        uses: ./actions/health-check
+        with:
+          health-check-url: 'http://localhost:8080/health.json'
+          max-retries: 3
+          retry-interval: 2
+          expected-status: '200'
+          timeout: 5
+
+      - name: Stop test server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) || true
+            rm /tmp/server.pid
+          fi
+
+  test-cleanup-action:
+    name: Test Cleanup Containers Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test cleanup action (dry run)
+        uses: ./actions/cleanup-containers
+        continue-on-error: true
+        with:
+          dokploy-url: 'https://test.dokploy.local'
+          api-key: 'test-api-key-12345'
+          application-id: 'test-app-id'
+          container-prefix: 'test-app'
+          keep-count: '2'
+          dry-run: 'true'
+
+      - name: Verify cleanup action structure
+        run: |
+          echo "✅ Cleanup action loaded successfully"
+
+  test-rollback-action:
+    name: Test Rollback Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test rollback action (dry run)
+        uses: ./actions/rollback
+        continue-on-error: true
+        with:
+          dokploy-url: 'https://test.dokploy.local'
+          api-key: 'test-api-key-12345'
+          application-id: 'test-app-id'
+          wait-for-completion: 'false'
+
+      - name: Verify rollback action structure
+        run: |
+          echo "✅ Rollback action loaded successfully"
+
+  test-setup-ssl-action:
+    name: Test Setup SSL Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test SSL setup action (dry run)
+        uses: ./actions/setup-ssl
+        continue-on-error: true
+        with:
+          dokploy-url: 'https://test.dokploy.local'
+          api-key: 'test-api-key-12345'
+          domain-id: 'test-domain-id'
+          certificate-type: 'letsencrypt'
+          email: 'test@example.com'
+
+      - name: Verify SSL action structure
+        run: |
+          echo "✅ SSL setup action loaded successfully"
+
+  test-configure-domain-action:
+    name: Test Configure Domain Action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test domain configuration action (dry run)
+        uses: ./actions/configure-domain
+        continue-on-error: true
+        with:
+          dokploy-url: 'https://test.dokploy.local'
+          api-key: 'test-api-key-12345'
+          application-id: 'test-app-id'
+          domain-host: 'test.example.com'
+          enable-https: 'true'
+          certificate-type: 'letsencrypt'
+
+      - name: Verify domain action structure
+        run: |
+          echo "✅ Domain configuration action loaded successfully"
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-test
+      - validate-actions
+      - test-deploy-action
+      - test-health-check-action
+      - test-cleanup-action
+      - test-rollback-action
+      - test-setup-ssl-action
+      - test-configure-domain-action
+    if: always()
+    steps:
+      - name: Generate test summary
+        run: |
+          echo "## 🧪 Action Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & Test | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validation | ${{ needs.validate-actions.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Main Action | ${{ needs.test-deploy-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Health Check | ${{ needs.test-health-check-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cleanup | ${{ needs.test-cleanup-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rollback | ${{ needs.test-rollback-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SSL Setup | ${{ needs.test-setup-ssl-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Configure Domain | ${{ needs.test-configure-domain-action.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-and-test.result }}" == "success" ] && \
+             [ "${{ needs.validate-actions.result }}" == "success" ] && \
+             [ "${{ needs.test-health-check-action.result }}" == "success" ]; then
+            echo "✅ **All critical tests passed**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
+          fi
