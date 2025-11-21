@@ -18,12 +18,54 @@ inputs:
     required: true
 
   application-id:
-    description: 'Dokploy application ID to deploy'
-    required: true
+    description: 'Dokploy application ID to deploy (optional if using project/environment/app names)'
+    required: false
+    default: ''
 
   docker-image:
     description: 'Docker image to deploy (e.g., ghcr.io/user/app:v1.0.0)'
     required: true
+
+  # ===== Project & Environment Management =====
+  project-id:
+    description: 'Dokploy project ID (optional if using project-name)'
+    required: false
+    default: ''
+
+  project-name:
+    description: 'Dokploy project name (will be created if not exists)'
+    required: false
+    default: ''
+
+  project-description:
+    description: 'Description for the project (used when creating new project)'
+    required: false
+    default: 'Automated deployment project'
+
+  environment-id:
+    description: 'Dokploy environment ID (optional if using environment-name)'
+    required: false
+    default: ''
+
+  environment-name:
+    description: 'Dokploy environment name (will be created if not exists)'
+    required: false
+    default: 'production'
+
+  application-name:
+    description: 'Dokploy application name (will be created/updated)'
+    required: false
+    default: ''
+
+  server-name:
+    description: 'Server name for deployment (e.g., Hostinger-Server1)'
+    required: false
+    default: ''
+
+  auto-create-resources:
+    description: 'Automatically create project/environment/application if they do not exist'
+    required: false
+    default: 'true'
 
   # ===== Deployment Control =====
   wait-for-completion:
@@ -84,6 +126,70 @@ inputs:
     required: false
     default: 'true'
 
+  # ===== Docker Registry Configuration =====
+  registry-url:
+    description: 'Docker registry URL (e.g., ghcr.io)'
+    required: false
+    default: 'ghcr.io'
+
+  registry-username:
+    description: 'Docker registry username'
+    required: false
+    default: ''
+
+  registry-password:
+    description: 'Docker registry password/token'
+    required: false
+    default: ''
+
+  # ===== Environment Variables =====
+  env:
+    description: 'Environment variables as KEY=VALUE pairs, one per line'
+    required: false
+    default: ''
+
+  env-file:
+    description: 'Path to .env file with environment variables'
+    required: false
+    default: ''
+
+  env-from-json:
+    description: 'Environment variables in JSON format: {"KEY1":"value1","KEY2":"value2"}'
+    required: false
+    default: ''
+
+  # ===== Domain Configuration =====
+  domain-host:
+    description: 'Domain host for the application (e.g., app.example.com)'
+    required: false
+    default: ''
+
+  domain-path:
+    description: 'Domain path prefix (e.g., /api)'
+    required: false
+    default: '/'
+
+  domain-port:
+    description: 'Application port for domain mapping'
+    required: false
+    default: '80'
+
+  domain-https:
+    description: 'Enable HTTPS for domain (true/false)'
+    required: false
+    default: 'true'
+
+  # ===== Advanced Options =====
+  deployment-strategy:
+    description: 'Deployment strategy: rolling, recreate'
+    required: false
+    default: 'rolling'
+
+  debug-mode:
+    description: 'Enable debug logging (true/false)'
+    required: false
+    default: 'false'
+
 outputs:
   deployment-id:
     description: 'The deployment ID from Dokploy'
@@ -100,6 +206,18 @@ outputs:
   containers-cleaned:
     description: 'Number of old containers cleaned up'
     value: ${{ steps.cleanup.outputs.removed-count }}
+
+  project-id:
+    description: 'The project ID (created or existing)'
+    value: ${{ steps.deploy.outputs.project-id }}
+
+  environment-id:
+    description: 'The environment ID (created or existing)'
+    value: ${{ steps.deploy.outputs.environment-id }}
+
+  application-id:
+    description: 'The application ID (created or updated)'
+    value: ${{ steps.deploy.outputs.application-id }}
 
 runs:
   using: 'node20'
