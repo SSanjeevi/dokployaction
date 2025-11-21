@@ -26450,10 +26450,85 @@ exports.parseInputs = parseInputs;
 const core = __importStar(__nccwpck_require__(7484));
 const helpers_1 = __nccwpck_require__(2096);
 function parseInputs() {
-    // Core configuration
-    const dokployUrl = core.getInput('dokploy-url', { required: true });
-    const apiKey = core.getInput('api-key', { required: true });
-    const dockerImage = core.getInput('docker-image', { required: true });
+    // Core configuration with enhanced validation
+    const dokployUrl = core.getInput('dokploy-url', { required: false });
+    const apiKey = core.getInput('api-key', { required: false });
+    const dockerImage = core.getInput('docker-image', { required: false });
+    // Validate required inputs with helpful error messages
+    if (!dokployUrl || dokployUrl.trim() === '') {
+        core.error('❌ Missing required input: dokploy-url');
+        core.error('');
+        core.error('The dokploy-url input is required but was not provided or is empty.');
+        core.error('');
+        core.error('Possible causes:');
+        core.error('  1. The secret DOKPLOY_URL is not set in your repository settings');
+        core.error('  2. The secret is set at environment level but not repository level');
+        core.error('  3. The secret is not being passed correctly in your workflow');
+        core.error('');
+        core.error('To fix this:');
+        core.error('  1. Go to: Settings → Secrets and variables → Actions');
+        core.error('  2. Add a repository secret named DOKPLOY_URL');
+        core.error('  3. Set the value to your Dokploy instance URL (e.g., https://dokploy.example.com)');
+        core.error('');
+        core.error('In your workflow, use:');
+        core.error('  with:');
+        core.error('    dokploy-url: ${{ secrets.DOKPLOY_URL }}');
+        core.error('');
+        throw new Error('Required input dokploy-url is missing or empty');
+    }
+    if (!apiKey || apiKey.trim() === '') {
+        core.error('❌ Missing required input: api-key');
+        core.error('');
+        core.error('The api-key input is required but was not provided or is empty.');
+        core.error('');
+        core.error('Possible causes:');
+        core.error('  1. The secret DOKPLOY_API_TOKEN (or similar) is not set in your repository');
+        core.error('  2. The secret is set at environment level but not repository level');
+        core.error('  3. The secret is not being passed correctly in your workflow');
+        core.error('');
+        core.error('To fix this:');
+        core.error('  1. Go to: Settings → Secrets and variables → Actions');
+        core.error('  2. Add a repository secret named DOKPLOY_API_TOKEN');
+        core.error('  3. Set the value to your Dokploy API key');
+        core.error('');
+        core.error('In your workflow, use:');
+        core.error('  with:');
+        core.error('    api-key: ${{ secrets.DOKPLOY_API_TOKEN }}');
+        core.error('');
+        throw new Error('Required input api-key is missing or empty');
+    }
+    if (!dockerImage || dockerImage.trim() === '') {
+        core.error('❌ Missing required input: docker-image');
+        core.error('');
+        core.error('The docker-image input is required but was not provided or is empty.');
+        core.error('');
+        core.error('Possible causes:');
+        core.error('  1. The docker-image input was not provided in your workflow');
+        core.error('  2. The variable used to construct the image is empty');
+        core.error('  3. A previous build step failed to produce the image');
+        core.error('');
+        core.error('To fix this:');
+        core.error('  1. Ensure your build step outputs the image name');
+        core.error('  2. Pass the image to this action:');
+        core.error('     with:');
+        core.error('       docker-image: ghcr.io/owner/repo:tag');
+        core.error('');
+        throw new Error('Required input docker-image is missing or empty');
+    }
+    // Validate URL format
+    try {
+        new URL(dokployUrl);
+    }
+    catch (error) {
+        core.error('❌ Invalid dokploy-url format');
+        core.error('');
+        core.error(`The provided URL is not valid: ${dokployUrl}`);
+        core.error('');
+        core.error('Expected format: https://dokploy.example.com');
+        core.error('Make sure to include the protocol (https://) and domain name.');
+        core.error('');
+        throw new Error(`Invalid dokploy-url format: ${dokployUrl}`);
+    }
     // Mask secrets
     (0, helpers_1.sanitizeSecret)(apiKey);
     const registryPassword = (0, helpers_1.parseOptionalStringInput)('registry-password');
