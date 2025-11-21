@@ -90,14 +90,18 @@ export async function run(): Promise<void> {
         core.info(
           `✅ Found existing environment: ${inputs.environmentName} (ID: ${environmentId})`
         )
-      } else if (defaultEnvironmentId) {
-        // Use the default environment created with the project
-        environmentId = defaultEnvironmentId
-        core.info(
-          `✅ Using default environment created with project (ID: ${environmentId})`
-        )
       } else if (inputs.autoCreateResources) {
-        environmentId = await client.createEnvironment(projectId, inputs.environmentName)
+        // Always create the requested environment, don't use default if name doesn't match
+        // The default environment created with project is named "production" by Dokploy
+        // We should only use it if the requested environment name is "production"
+        if (defaultEnvironmentId && inputs.environmentName.toLowerCase() === 'production') {
+          environmentId = defaultEnvironmentId
+          core.info(
+            `✅ Using default production environment created with project (ID: ${environmentId})`
+          )
+        } else {
+          environmentId = await client.createEnvironment(projectId, inputs.environmentName)
+        }
       } else {
         throw new Error(
           `Environment "${inputs.environmentName}" not found and auto-create is disabled`
