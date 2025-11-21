@@ -1,13 +1,13 @@
 # Dokploy GitHub Actions
 
-> **Production-ready GitHub Actions for Dokploy deployments with best practices, security, and automation**
+> **GitHub Actions for automated Dokploy deployments with health checks and lifecycle management**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Dokploy](https://img.shields.io/badge/Dokploy-Compatible-blue)](https://dokploy.com)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-green)](https://github.com/features/actions)
 [![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-Published-blue)](https://github.com/marketplace/actions/dokploy-deployment-suite)
 
-Deploy to Dokploy from GitHub Actions with a single line of code. Includes health checks, automatic rollback, zero-downtime deployments, and comprehensive lifecycle management.
+Deploy to Dokploy from GitHub Actions with automated project, environment, and application management. Includes health checks, container cleanup, and modular composite actions.
 
 ## ⚡ Quick Example
 
@@ -32,52 +32,50 @@ jobs:
           enable-health-check: true
           health-check-url: 'https://app.com/health'
           cleanup-old-containers: true
-          rollback-on-failure: true
 ```
 
-That's it! Your application will be deployed with health checks, cleanup, and automatic rollback on failure.
+That's it! Your application will be deployed with health checks and optional container cleanup.
 
 ## 🚀 Features
 
-### ✨ Simple Yet Powerful
+### ✨ Core Functionality
 
-- **🎯 One-Line Deployment**: Use the main action with a single `uses:` statement
-- **🧩 Modular Actions**: Mix and match individual actions for custom workflows
-- **📋 Ready-Made Examples**: Copy and customize complete workflow templates
-- **🔒 Security First**: Built-in secret management and secure credential handling
+- **🎯 Simple Deployment**: Deploy Docker images to Dokploy with a single action
+- **🧩 Modular Actions**: Use individual composite actions for custom workflows
+- **📦 Lifecycle Management**: Automated project, environment, and application management
+- **🔒 Secure**: Uses GitHub Secrets for API keys and registry credentials
 
-### 🏥 Reliability & Health
+### 🏥 Health & Monitoring
 
-- **Health Checks**: Automatic health verification after deployment
-- **Auto Rollback**: Rollback automatically on deployment or health check failure
-- **Container Cleanup**: Remove old containers after successful deployment
-- **Zero Downtime**: Blue-green deployment pattern (see examples)
+- **Health Checks**: Configurable health verification after deployment
+- **Retry Logic**: Automatic retries with configurable intervals
+- **Container Cleanup**: Optional cleanup of old containers before deployment
+- **Deployment Status**: Clear success/failure reporting
 
-### 📦 Complete Lifecycle Management
+### 📦 Configuration Options
 
-- **Project Management**: Create and manage Dokploy projects
-- **Environment Setup**: Automated environment provisioning
-- **Application Config**: Docker, domains, SSL, environment variables
-- **Deployment Control**: Deploy, rollback, scale, monitor
+- **Docker Registry**: Support for private registries with authentication
+- **Environment Variables**: Configure application environment variables
+- **Domain Setup**: Optional domain and SSL configuration
+- **Flexible Inputs**: Extensive configuration options for customization
 
-### 🎓 Easy to Use
+### 🎓 Developer Friendly
 
-- **GitHub Marketplace**: Install with one click from GitHub Marketplace
-- **Well Documented**: Comprehensive guides and API reference
-- **Example Workflows**: 7+ production-ready workflow templates
-- **Troubleshooting**: Common issues and solutions documented
+- **TypeScript Implementation**: Type-safe, well-tested codebase
+- **Composite Actions**: Reusable actions for specific tasks
+- **Clear Documentation**: Quick start guide and feature documentation
+- **GitHub Marketplace**: Easy installation from Marketplace
 
 ## 📋 Table of Contents
 
 - [Quick Start](#quick-start)
-- [Reusable Actions](#reusable-actions)
-- [Reusable Workflows](#reusable-workflows)
-- [Workflow Templates](#workflow-templates)
+- [Repository Structure](#repository-structure)
+- [Composite Actions](#composite-actions)
 - [Configuration](#configuration)
 - [Security Best Practices](#security-best-practices)
-- [Examples](#examples)
-- [API Operations](#api-operations)
-- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## 🎯 Quick Start
 
@@ -102,9 +100,9 @@ Optional Secrets (for private registries):
   REGISTRY_PASSWORD: your-registry-token
 ```
 
-### 3. Choose Your Approach
+### 3. Create Your Workflow
 
-**Option A: Use the Complete Action (Easiest)**
+**Option A: Use the Main Action (Recommended)**
 ```yaml
 # .github/workflows/deploy.yml
 name: Deploy to Dokploy
@@ -128,7 +126,7 @@ jobs:
           cleanup-old-containers: true
 ```
 
-**Option B: Use Individual Actions (More Control)**
+**Option B: Use Composite Actions (More Control)**
 ```yaml
 steps:
   - name: Deploy
@@ -138,244 +136,186 @@ steps:
       api-key: ${{ secrets.DOKPLOY_API_KEY }}
       application-id: 'app_123'
       docker-image: 'ghcr.io/user/app:latest'
-  
+
   - name: Health Check
     uses: SSanjeevi/dokployaction/actions/health-check@v1
     with:
       health-check-url: 'https://app.com/health'
 ```
 
-**Option C: Use Example Workflows (Full Templates)**
-
-Browse complete workflow examples in [`examples/workflows/`](examples/workflows/):
-- **Simple Deployment**: Basic deployment workflow
-- **Production Deployment**: Full-featured with health checks and rollback
-- **Blue-Green Deployment**: Zero-downtime deployments
-- **Complete Lifecycle**: Full project/environment/app management
-
-See [examples/workflows/README.md](examples/workflows/README.md) for detailed usage instructions.
+See [QUICK_START.md](QUICK_START.md) for more detailed examples and configuration options.
 
 ## 📁 Repository Structure
 
 ```
 dokployaction/
-├── action.yml                             # 🎯 Main action for GitHub Marketplace
-├── actions/                               # 🧩 Reusable composite actions
+├── action.yml                             # 🎯 Main action metadata
+├── src/                                   # 💻 TypeScript source code
+│   ├── index.ts                           # Main entry point
+│   ├── client/                            # Dokploy API client
+│   ├── types/                             # TypeScript type definitions
+│   ├── inputs.ts                          # Input parsing
+│   ├── config.ts                          # Configuration builders
+│   ├── health-check.ts                    # Health check logic
+│   ├── outputs.ts                         # Output handling
+│   └── utils/                             # Helper utilities
+├── dist/                                  # 📦 Compiled JavaScript (bundled)
+│   └── index.js                           # Built action for GitHub Actions
+├── actions/                               # 🧩 Composite actions
 │   ├── deploy/                            # Deploy action
 │   ├── health-check/                      # Health check action
 │   ├── cleanup-containers/                # Container cleanup action
 │   ├── setup-ssl/                         # SSL setup action
 │   ├── configure-domain/                  # Domain configuration action
 │   └── rollback/                          # Rollback action
+├── __tests__/                             # 🧪 Unit tests
 ├── .github/
 │   └── workflows/
-│       ├── test-actions.yml               # 🧪 Test and validate actions
-│       └── publish-release.yml            # 📦 Publish to marketplace
-├── examples/
-│   ├── workflows/                         # 📋 Example workflow templates
-│   │   ├── simple-deploy.yml              # Basic deployment
-│   │   ├── production-deploy.yml          # Production-ready
-│   │   ├── blue-green-deploy.yml          # Zero-downtime
-│   │   ├── complete-lifecycle.yml         # Full lifecycle
-│   │   ├── test-and-deploy.yml            # With testing
-│   │   ├── reusable-deploy.yml            # Reusable workflow
-│   │   └── reusable-blue-green.yml        # Reusable blue-green
-│   ├── basic/                             # Basic usage examples
-│   └── advanced/                          # Advanced scenarios
-├── docs/
-│   ├── API_REFERENCE.md                   # Dokploy API documentation
-│   ├── SECURITY.md                        # Security best practices
-│   ├── TROUBLESHOOTING.md                 # Common issues & solutions
-│   └── WORKFLOWS.md                       # Workflow documentation
-├── scripts/
-│   ├── health-check.sh                    # Health check script
-│   ├── cleanup-old-containers.sh          # Container cleanup
-│   └── validate-deployment.sh             # Deployment validation
+│       ├── test-actions.yml               # Test and validate actions
+│       └── publish-release.yml            # Publish to marketplace
+├── QUICK_START.md                         # Quick start guide
+├── FEATURES.md                            # Feature documentation
+├── CHANGELOG.md                           # Version history
+├── CONTRIBUTING.md                        # Contribution guidelines
 └── README.md                              # This file
 ```
 
-## 🎯 Reusable Actions
+## 🧩 Composite Actions
 
-Modular composite actions you can use in any workflow. No need to understand Dokploy API details!
+Modular composite actions you can use in any workflow for specific tasks.
 
 ### Available Actions
 
 | Action | Description | Usage |
 |--------|-------------|-------|
-| **deploy** | Deploy Docker image | `uses: your-org/dokployaction/actions/deploy@v1` |
-| **health-check** | Verify application health | `uses: your-org/dokployaction/actions/health-check@v1` |
-| **cleanup-containers** | Remove old containers | `uses: your-org/dokployaction/actions/cleanup-containers@v1` |
-| **setup-ssl** | Configure SSL/TLS | `uses: your-org/dokployaction/actions/setup-ssl@v1` |
-| **configure-domain** | Set up custom domain | `uses: your-org/dokployaction/actions/configure-domain@v1` |
-| **rollback** | Rollback deployment | `uses: your-org/dokployaction/actions/rollback@v1` |
+| **deploy** | Deploy Docker image to Dokploy | `uses: SSanjeevi/dokployaction/actions/deploy@v1` |
+| **health-check** | Verify application health with retries | `uses: SSanjeevi/dokployaction/actions/health-check@v1` |
+| **cleanup-containers** | Remove old containers | `uses: SSanjeevi/dokployaction/actions/cleanup-containers@v1` |
+| **setup-ssl** | Configure SSL/TLS certificates | `uses: SSanjeevi/dokployaction/actions/setup-ssl@v1` |
+| **configure-domain** | Set up custom domain | `uses: SSanjeevi/dokployaction/actions/configure-domain@v1` |
+| **rollback** | Rollback to previous deployment | `uses: SSanjeevi/dokployaction/actions/rollback@v1` |
 
-### Quick Example
+### Example: Using Composite Actions
 
 ```yaml
-- name: Deploy
-  uses: your-org/dokployaction/actions/deploy@v1
+steps:
+  - name: Deploy Application
+    uses: SSanjeevi/dokployaction/actions/deploy@v1
+    with:
+      dokploy-url: ${{ secrets.DOKPLOY_URL }}
+      api-key: ${{ secrets.DOKPLOY_API_KEY }}
+      application-id: 'app_123'
+      docker-image: 'ghcr.io/user/app:latest'
+
+  - name: Verify Health
+    uses: SSanjeevi/dokployaction/actions/health-check@v1
+    with:
+      health-check-url: 'https://app.com/health'
+      max-retries: 10
+      retry-interval: 6
+
+  - name: Cleanup Old Containers
+    uses: SSanjeevi/dokployaction/actions/cleanup-containers@v1
+    with:
+      dokploy-url: ${{ secrets.DOKPLOY_URL }}
+      api-key: ${{ secrets.DOKPLOY_API_KEY }}
+      application-id: 'app_123'
+      keep-count: 2
+```
+
+📖 **Full documentation**: [actions/README.md](actions/README.md)
+
+---
+
+## ⚙️ Configuration
+
+### Main Action Inputs
+
+The main action (`SSanjeevi/dokployaction@v1`) supports the following inputs:
+
+#### Required Inputs
+- `dokploy-url`: Your Dokploy instance URL (e.g., `https://dokploy.example.com`)
+- `api-key`: Dokploy API key for authentication
+- `application-id`: ID of the application to deploy
+- `docker-image`: Docker image to deploy (e.g., `ghcr.io/user/app:v1.0.0`)
+
+#### Optional Inputs
+- `wait-for-completion`: Wait for deployment to complete (default: `true`)
+- `timeout`: Deployment timeout in seconds (default: `300`)
+- `enable-health-check`: Enable health check after deployment (default: `true`)
+- `health-check-url`: Health check endpoint URL
+- `health-check-retries`: Number of health check retries (default: `10`)
+- `health-check-interval`: Interval between retries in seconds (default: `6`)
+- `expected-status-code`: Expected HTTP status code (default: `200`)
+- `cleanup-old-containers`: Cleanup old containers before deployment (default: `false`)
+- `container-prefix`: Container name prefix for filtering
+- `keep-container-count`: Number of old containers to keep (default: `1`)
+- `rollback-on-failure`: Enable rollback on failure (default: `true`)
+
+### Outputs
+
+- `deployment-id`: The deployment ID from Dokploy
+- `deployment-status`: Deployment status (`success`/`failed`/`timeout`)
+- `health-status`: Health check status (`healthy`/`unhealthy`/`skipped`)
+- `containers-cleaned`: Number of old containers cleaned up
+
+### Example with All Options
+
+```yaml
+- uses: SSanjeevi/dokployaction@v1
   with:
+    # Required
     dokploy-url: ${{ secrets.DOKPLOY_URL }}
     api-key: ${{ secrets.DOKPLOY_API_KEY }}
-    application-id: 'app_123'
-    docker-image: 'ghcr.io/user/app:latest'
+    application-id: 'app_abc123'
+    docker-image: 'ghcr.io/myorg/myapp:v1.2.3'
 
-- name: Health Check
-  uses: your-org/dokployaction/actions/health-check@v1
-  with:
-    health-check-url: 'https://app.com/health'
+    # Deployment control
+    wait-for-completion: true
+    timeout: 600
+
+    # Health checks
+    enable-health-check: true
+    health-check-url: 'https://myapp.com/health'
+    health-check-retries: 15
+    health-check-interval: 10
+    expected-status-code: 200
+
+    # Container management
+    cleanup-old-containers: true
+    container-prefix: 'myapp-prod'
+    keep-container-count: 2
+
+    # Rollback
+    rollback-on-failure: true
 ```
-
-📖 **Full documentation**: [actions/README.md](actions/README.md) | [REUSABLE_ACTIONS_GUIDE.md](REUSABLE_ACTIONS_GUIDE.md)
 
 ---
-
-## 🔄 Reusable Workflows
-
-Complete workflows you can call from any repository. Just configure and go!
-
-### 1. Reusable Deploy Workflow
-
-Simple deployment with health checks and optional cleanup.
-
-```yaml
-name: Deploy to Production
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    uses: your-org/dokployaction/.github/workflows/reusable-deploy.yml@v1
-    with:
-      docker-image: 'ghcr.io/user/app:latest'
-      application-id: 'app_123'
-      health-check-url: 'https://app.com/health'
-      enable-health-check: true
-      cleanup-containers: true
-      rollback-on-failure: true
-    secrets:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-```
-
-### 2. Reusable Blue-Green Workflow
-
-Zero-downtime deployment with automatic rollback.
-
-```yaml
-name: Blue-Green Deploy
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    uses: your-org/dokployaction/.github/workflows/reusable-blue-green.yml@v1
-    with:
-      docker-image: 'ghcr.io/user/app:latest'
-      application-id: 'app_123'
-      health-check-url: 'https://app.com/health'
-      container-prefix: 'myapp-prod'
-      keep-old-containers: 2
-    secrets:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-```
-
-📖 **See examples**: [examples/reusable/](examples/reusable/)
-
----
-
-## 📋 Workflow Templates
-
-Complete workflow templates you can copy to your repository.
-
-### 1. Simple Deployment
-
-Perfect for getting started quickly.
-
-```yaml
-name: Simple Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    uses: ./.github/workflows/simple-deploy.yml
-    secrets:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-```
-
-### 2. Production Deployment
-
-Includes health checks, rollback, and comprehensive logging.
-
-```yaml
-name: Production Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    uses: ./.github/workflows/production-deploy.yml
-    with:
-      environment: production
-      health-check-enabled: true
-      cleanup-old-containers: true
-    secrets:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-```
-
-### 3. Blue-Green Deployment
-
-Zero-downtime deployments with automatic rollback.
-
-```yaml
-name: Blue-Green Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    uses: ./.github/workflows/blue-green-deploy.yml
-    with:
-      container-prefix: myapp
-      wait-for-healthy: true
-      health-check-timeout: 300
-    secrets:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-```
 
 ## 🔐 Security Best Practices
 
-1. **Use GitHub Secrets**: Never hardcode credentials
-2. **OIDC Authentication**: Use OpenID Connect for cloud providers
-3. **Least Privilege**: Grant minimum required permissions
-4. **Secret Scanning**: Enable GitHub secret scanning
-5. **Audit Logs**: Review deployment logs regularly
-6. **API Key Rotation**: Rotate Dokploy API keys periodically
-
-See [SECURITY.md](docs/SECURITY.md) for detailed security guidelines.
+1. **Use GitHub Secrets**: Store `DOKPLOY_URL` and `DOKPLOY_API_KEY` as repository secrets
+2. **Private Registry Credentials**: Use secrets for `REGISTRY_USERNAME` and `REGISTRY_PASSWORD`
+3. **API Key Rotation**: Rotate Dokploy API keys periodically
+4. **Least Privilege**: Use API keys with minimum required permissions
+5. **Review Logs**: Monitor GitHub Actions logs for deployment activity
+6. **Environment Protection**: Use GitHub environment protection rules for production deployments
 
 ## 📚 Documentation
 
-- [API Reference](docs/API_REFERENCE.md) - Complete Dokploy API documentation
-- [Workflow Guide](docs/WORKFLOWS.md) - Detailed workflow explanations
-- [Security Guide](docs/SECURITY.md) - Security best practices
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Quick Start Guide](QUICK_START.md) - Get started quickly with examples
+- [Features Documentation](FEATURES.md) - Detailed feature descriptions
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute to this project
+- [Changelog](CHANGELOG.md) - Version history and changes
+- [Composite Actions](actions/README.md) - Documentation for individual actions
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Reporting bugs
+- Suggesting features
+- Submitting pull requests
+- Running tests locally
 
 ## 📄 License
 
@@ -383,13 +323,18 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [Dokploy](https://dokploy.com) - The amazing deployment platform
-- [GitHub Actions](https://github.com/features/actions) - CI/CD platform
-- Community contributors
+- [Dokploy](https://dokploy.com) - The deployment platform this action integrates with
+- [GitHub Actions](https://github.com/features/actions) - The CI/CD platform
+- All contributors who help improve this project
 
 ## 📞 Support
 
-- [Dokploy Documentation](https://docs.dokploy.com)
-- [GitHub Issues](https://github.com/yourusername/dokployaction/issues)
-- [Dokploy Discord](https://discord.gg/dokploy)
+- **Documentation**: [Dokploy Docs](https://docs.dokploy.com)
+- **Issues**: [GitHub Issues](https://github.com/SSanjeevi/dokployaction/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/SSanjeevi/dokployaction/discussions)
+- **Dokploy Community**: [Dokploy Discord](https://discord.gg/dokploy)
+
+---
+
+**Made with ❤️ for the Dokploy community**
 
