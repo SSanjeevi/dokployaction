@@ -10,8 +10,12 @@
  * - Docker provider configuration
  * - Environment variable management
  * - Domain and SSL configuration
- * - Health check verification
+ * - Health check verification with deployment failure marking
  * - Comprehensive error handling and debugging
+ *
+ * Important: If health check is enabled and fails, the deployment will be
+ * marked as failed even if the container deployment succeeded. This ensures
+ * users are aware when the new version is not functioning correctly.
  */
 
 import * as core from '@actions/core'
@@ -260,6 +264,16 @@ export async function run(): Promise<void> {
       core.startGroup('🏥 Health Check')
       const healthStatus = await performHealthCheck(deploymentUrl, inputs)
       core.setOutput('health-check-status', healthStatus)
+      
+      if (healthStatus === 'unhealthy') {
+        core.setOutput('deployment-status', 'failed')
+        core.setFailed('❌ Deployment failed: Health check returned unhealthy status')
+        core.error('The deployment completed but the application failed health checks.')
+        core.error('This indicates the new version is not functioning correctly.')
+        core.endGroup()
+        throw new Error('Health check failed - deployment marked as failed')
+      }
+      
       core.endGroup()
     } else {
       core.setOutput('health-check-status', 'skipped')

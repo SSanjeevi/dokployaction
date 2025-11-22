@@ -113,7 +113,7 @@ describe('performHealthCheck', () => {
 
     const inputs: ActionInputs = {
       ...mockInputs,
-      healthCheckUrl: '/api/status'
+      healthCheckPath: '/api/status'
     }
 
     await performHealthCheck('https://example.com', inputs)

@@ -160,7 +160,7 @@ export function parseInputs(): ActionInputs {
     // Domain & SSL
     domainHost: parseOptionalStringInput('domain-host'),
     domainPath: parseOptionalStringInput('domain-path'),
-    domainPort: parseIntInput(parseOptionalStringInput('domain-port'), 'domain-port'),
+    applicationPort: parseIntInput(parseOptionalStringInput('application-port'), 'application-port'),
     domainHttps: parseBooleanInput(parseOptionalStringInput('domain-https')) ?? true,
     sslCertificateType: parseOptionalStringInput('ssl-certificate-type'),
     domainStripPath: parseBooleanInput(parseOptionalStringInput('domain-strip-path')),
@@ -183,7 +183,7 @@ export function parseInputs(): ActionInputs {
     // Health Check
     healthCheckEnabled:
       parseBooleanInput(parseOptionalStringInput('health-check-enabled')) ?? true,
-    healthCheckUrl: parseOptionalStringInput('health-check-url'),
+    healthCheckPath: parseOptionalStringInput('health-check-path'),
     healthCheckTimeout: parseIntInput(
       parseOptionalStringInput('health-check-timeout'),
       'health-check-timeout'

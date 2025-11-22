@@ -35,7 +35,7 @@ Deploy a Docker image to Dokploy application.
 Perform health check with automatic retries.
 
 **Inputs:**
-- `health-check-url` (required): Health check URL
+- `health-check-path` (required): Health check endpoint path (e.g., `/health` or `/`)
 - `max-retries` (optional, default: `10`): Maximum retries
 - `retry-interval` (optional, default: `6`): Interval between retries (seconds)
 - `expected-status` (optional, default: `200`): Expected HTTP status
@@ -49,7 +49,7 @@ Perform health check with automatic retries.
 ```yaml
 - uses: your-org/dokployaction/actions/health-check@v1
   with:
-    health-check-url: 'https://app.com/health'
+    health-check-path: '/health'
     max-retries: 10
     retry-interval: 6
 ```
@@ -186,7 +186,7 @@ You can chain actions together to create custom workflows:
   id: health
   uses: ./actions/health-check
   with:
-    health-check-url: 'https://app.com/health'
+    health-check-path: '/health'
   continue-on-error: true
 
 - name: Cleanup

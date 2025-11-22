@@ -21,12 +21,12 @@ export async function performHealthCheck(
     return 'skipped'
   }
 
-  const healthCheckUrl = inputs.healthCheckUrl || '/health'
+  const healthCheckPath = inputs.healthCheckPath || '/health'
   const timeout = inputs.healthCheckTimeout || 60
   const retries = inputs.healthCheckRetries || 3
   const interval = inputs.healthCheckInterval || 10
 
-  const fullUrl = `${deploymentUrl}${healthCheckUrl}`
+  const fullUrl = `${deploymentUrl}${healthCheckPath}`
   core.info(`🏥 Performing health check: ${fullUrl}`)
   core.info(`   Timeout: ${timeout}s, Retries: ${retries}, Interval: ${interval}s`)
 

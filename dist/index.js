@@ -26022,11 +26022,11 @@ function buildDomainConfig(inputs) {
     if (!inputs.domainHost) {
         return null;
     }
-    const domainPort = inputs.domainPort || inputs.targetPort || 8080;
+    const applicationPort = inputs.applicationPort || inputs.targetPort || 8080;
     return {
         host: inputs.domainHost,
         path: inputs.domainPath || '/',
-        port: domainPort,
+        port: applicationPort,
         https: inputs.domainHttps !== false,
         certificateType: inputs.sslCertificateType || 'letsencrypt',
         domainType: 'application',
@@ -26112,11 +26112,11 @@ async function performHealthCheck(deploymentUrl, inputs) {
         core.warning('⚠️ No deployment URL available, skipping health check');
         return 'skipped';
     }
-    const healthCheckUrl = inputs.healthCheckUrl || '/health';
+    const healthCheckPath = inputs.healthCheckPath || '/health';
     const timeout = inputs.healthCheckTimeout || 60;
     const retries = inputs.healthCheckRetries || 3;
     const interval = inputs.healthCheckInterval || 10;
-    const fullUrl = `${deploymentUrl}${healthCheckUrl}`;
+    const fullUrl = `${deploymentUrl}${healthCheckPath}`;
     core.info(`🏥 Performing health check: ${fullUrl}`);
     core.info(`   Timeout: ${timeout}s, Retries: ${retries}, Interval: ${interval}s`);
     const client = new httpm.HttpClient('dokploy-health-check');
@@ -26174,8 +26174,12 @@ async function performHealthCheck(deploymentUrl, inputs) {
  * - Docker provider configuration
  * - Environment variable management
  * - Domain and SSL configuration
- * - Health check verification
+ * - Health check verification with deployment failure marking
  * - Comprehensive error handling and debugging
+ *
+ * Important: If health check is enabled and fails, the deployment will be
+ * marked as failed even if the container deployment succeeded. This ensures
+ * users are aware when the new version is not functioning correctly.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -26413,6 +26417,14 @@ async function run() {
             core.startGroup('🏥 Health Check');
             const healthStatus = await (0, health_check_1.performHealthCheck)(deploymentUrl, inputs);
             core.setOutput('health-check-status', healthStatus);
+            if (healthStatus === 'unhealthy') {
+                core.setOutput('deployment-status', 'failed');
+                core.setFailed('❌ Deployment failed: Health check returned unhealthy status');
+                core.error('The deployment completed but the application failed health checks.');
+                core.error('This indicates the new version is not functioning correctly.');
+                core.endGroup();
+                throw new Error('Health check failed - deployment marked as failed');
+            }
             core.endGroup();
         }
         else {
@@ -26629,7 +26641,7 @@ function parseInputs() {
         // Domain & SSL
         domainHost: (0, helpers_1.parseOptionalStringInput)('domain-host'),
         domainPath: (0, helpers_1.parseOptionalStringInput)('domain-path'),
-        domainPort: (0, helpers_1.parseIntInput)((0, helpers_1.parseOptionalStringInput)('domain-port'), 'domain-port'),
+        applicationPort: (0, helpers_1.parseIntInput)((0, helpers_1.parseOptionalStringInput)('application-port'), 'application-port'),
         domainHttps: (0, helpers_1.parseBooleanInput)((0, helpers_1.parseOptionalStringInput)('domain-https')) ?? true,
         sslCertificateType: (0, helpers_1.parseOptionalStringInput)('ssl-certificate-type'),
         domainStripPath: (0, helpers_1.parseBooleanInput)((0, helpers_1.parseOptionalStringInput)('domain-strip-path')),
@@ -26643,7 +26655,7 @@ function parseInputs() {
         cleanupOldContainers: (0, helpers_1.parseBooleanInput)((0, helpers_1.parseOptionalStringInput)('cleanup-old-containers')),
         // Health Check
         healthCheckEnabled: (0, helpers_1.parseBooleanInput)((0, helpers_1.parseOptionalStringInput)('health-check-enabled')) ?? true,
-        healthCheckUrl: (0, helpers_1.parseOptionalStringInput)('health-check-url'),
+        healthCheckPath: (0, helpers_1.parseOptionalStringInput)('health-check-path'),
         healthCheckTimeout: (0, helpers_1.parseIntInput)((0, helpers_1.parseOptionalStringInput)('health-check-timeout'), 'health-check-timeout'),
         healthCheckRetries: (0, helpers_1.parseIntInput)((0, helpers_1.parseOptionalStringInput)('health-check-retries'), 'health-check-retries'),
         healthCheckInterval: (0, helpers_1.parseIntInput)((0, helpers_1.parseOptionalStringInput)('health-check-interval'), 'health-check-interval'),

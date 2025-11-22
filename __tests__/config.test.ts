@@ -126,7 +126,7 @@ describe('buildDomainConfig', () => {
       ...mockInputs,
       domainHost: 'api.example.com',
       domainPath: '/api',
-      domainPort: 3000,
+      applicationPort: 3000,
       domainHttps: false,
       sslCertificateType: 'custom',
       domainStripPath: true
@@ -142,7 +142,7 @@ describe('buildDomainConfig', () => {
     expect(config?.stripPath).toBe(true)
   })
 
-  it('should use targetPort when domainPort not specified', () => {
+  it('should use targetPort when applicationPort not specified', () => {
     const inputs: ActionInputs = {
       ...mockInputs,
       domainHost: 'example.com',

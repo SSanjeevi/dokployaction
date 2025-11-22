@@ -131,7 +131,8 @@ jobs:
       - name: Test health check action (should pass)
         uses: ./actions/health-check
         with:
-          health-check-url: 'http://localhost:8080/health.json'
+          deployment-url: 'http://localhost:8080'
+          health-check-path: '/health.json'
           max-retries: 3
           retry-interval: 2
           expected-status: '200'

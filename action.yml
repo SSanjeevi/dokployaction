@@ -84,8 +84,8 @@ inputs:
     required: false
     default: 'true'
 
-  health-check-url:
-    description: 'Health check endpoint URL (e.g., https://app.com/health)'
+  health-check-path:
+    description: 'Health check endpoint path (e.g., /health or /)'
     required: false
     default: ''
 
@@ -169,8 +169,8 @@ inputs:
     required: false
     default: '/'
 
-  domain-port:
-    description: 'Application port for domain mapping'
+  application-port:
+    description: 'Container port that the application listens on (not the domain port which is always 80/443)'
     required: false
     default: '80'
 

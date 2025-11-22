@@ -155,7 +155,7 @@ export interface ActionInputs {
   // Domain & SSL
   domainHost?: string
   domainPath?: string
-  domainPort?: number
+  applicationPort?: number
   domainHttps?: boolean
   sslCertificateType?: string
   domainStripPath?: boolean
@@ -171,7 +171,7 @@ export interface ActionInputs {
 
   // Health Check
   healthCheckEnabled?: boolean
-  healthCheckUrl?: string
+  healthCheckPath?: string
   healthCheckTimeout?: number
   healthCheckRetries?: number
   healthCheckInterval?: number

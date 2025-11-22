@@ -30,7 +30,7 @@ jobs:
           application-id: 'your-app-id'
           docker-image: 'ghcr.io/user/app:latest'
           enable-health-check: true
-          health-check-url: 'https://app.com/health'
+          health-check-path: '/health'
           cleanup-old-containers: true
 ```
 
@@ -49,6 +49,7 @@ That's it! Your application will be deployed with health checks and optional con
 
 - **Health Checks**: Configurable health verification after deployment
 - **Retry Logic**: Automatic retries with configurable intervals
+- **Deployment Validation**: Marks deployment as failed if health check fails
 - **Container Cleanup**: Optional cleanup of old containers before deployment
 - **Deployment Status**: Clear success/failure reporting
 
@@ -122,7 +123,7 @@ jobs:
           application-id: 'your-app-id'
           docker-image: 'ghcr.io/user/app:latest'
           enable-health-check: true
-          health-check-url: 'https://app.com/health'
+          health-check-path: '/health'
           cleanup-old-containers: true
 ```
 
@@ -140,7 +141,7 @@ steps:
   - name: Health Check
     uses: SSanjeevi/dokployaction/actions/health-check@v1
     with:
-      health-check-url: 'https://app.com/health'
+      health-check-path: '/health'
 ```
 
 See [QUICK_START.md](QUICK_START.md) for more detailed examples and configuration options.
@@ -210,7 +211,7 @@ steps:
   - name: Verify Health
     uses: SSanjeevi/dokployaction/actions/health-check@v1
     with:
-      health-check-url: 'https://app.com/health'
+      health-check-path: '/health'
       max-retries: 10
       retry-interval: 6
 
@@ -243,7 +244,7 @@ The main action (`SSanjeevi/dokployaction@v1`) supports the following inputs:
 - `wait-for-completion`: Wait for deployment to complete (default: `true`)
 - `timeout`: Deployment timeout in seconds (default: `300`)
 - `enable-health-check`: Enable health check after deployment (default: `true`)
-- `health-check-url`: Health check endpoint URL
+- `health-check-path`: Health check endpoint path (e.g., `/health` or `/`)
 - `health-check-retries`: Number of health check retries (default: `10`)
 - `health-check-interval`: Interval between retries in seconds (default: `6`)
 - `expected-status-code`: Expected HTTP status code (default: `200`)
@@ -251,6 +252,7 @@ The main action (`SSanjeevi/dokployaction@v1`) supports the following inputs:
 - `container-prefix`: Container name prefix for filtering
 - `keep-container-count`: Number of old containers to keep (default: `1`)
 - `rollback-on-failure`: Enable rollback on failure (default: `true`)
+- `application-port`: Container port the application listens on (default: `80`)
 
 ### Outputs
 
@@ -276,7 +278,7 @@ The main action (`SSanjeevi/dokployaction@v1`) supports the following inputs:
 
     # Health checks
     enable-health-check: true
-    health-check-url: 'https://myapp.com/health'
+    health-check-path: '/health'
     health-check-retries: 15
     health-check-interval: 10
     expected-status-code: 200

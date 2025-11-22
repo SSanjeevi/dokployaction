@@ -8,8 +8,11 @@ branding:
   color: 'green'
 
 inputs:
-  health-check-url:
-    description: 'Health check URL (e.g., https://app.com/health)'
+  health-check-path:
+    description: 'Health check endpoint path (e.g., /health or /)'
+    required: true
+  deployment-url:
+    description: 'Base deployment URL to check (e.g., https://app.com)'
     required: true
   max-retries:
     description: 'Maximum number of retries'
@@ -44,7 +47,12 @@ runs:
       shell: bash
       run: |
         echo "🏥 Performing health check..."
-        echo "URL: ${{ inputs.health-check-url }}"
+        echo "Base URL: ${{ inputs.deployment-url }}"
+        echo "Path: ${{ inputs.health-check-path }}"
+        
+        # Construct full URL
+        full_url="${{ inputs.deployment-url }}${{ inputs.health-check-path }}"
+        echo "Full URL: $full_url"
         echo "Max retries: ${{ inputs.max-retries }}"
         echo "Retry interval: ${{ inputs.retry-interval }}s"
         echo "Expected status: ${{ inputs.expected-status }}"
@@ -60,7 +68,7 @@ runs:
           http_code=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time $timeout \
             --connect-timeout 5 \
-            "${{ inputs.health-check-url }}" || echo "000")
+            "$full_url" || echo "000")
 
           echo "http-code=$http_code" >> $GITHUB_OUTPUT
 
@@ -88,7 +96,8 @@ runs:
       run: |
         echo "## 🏥 Health Check Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **URL**: ${{ inputs.health-check-url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Base URL**: ${{ inputs.deployment-url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Path**: ${{ inputs.health-check-path }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Status**: ${{ steps.check.outputs.status }}" >> $GITHUB_STEP_SUMMARY
         echo "- **HTTP Code**: ${{ steps.check.outputs.http-code }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Expected**: ${{ inputs.expected-status }}" >> $GITHUB_STEP_SUMMARY

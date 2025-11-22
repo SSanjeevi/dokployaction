@@ -56,12 +56,12 @@ export function buildDomainConfig(inputs: ActionInputs): Partial<Domain> | null 
     return null
   }
 
-  const domainPort = inputs.domainPort || inputs.targetPort || 8080
+  const applicationPort = inputs.applicationPort || inputs.targetPort || 8080
 
   return {
     host: inputs.domainHost,
     path: inputs.domainPath || '/',
-    port: domainPort,
+    port: applicationPort,
     https: inputs.domainHttps !== false,
     certificateType: (inputs.sslCertificateType as 'letsencrypt' | 'custom' | 'none') || 'letsencrypt',
     domainType: 'application',
