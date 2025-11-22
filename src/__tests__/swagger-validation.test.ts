@@ -133,24 +133,34 @@ describe('Swagger Schema Validation', () => {
 
   describe('API Endpoint Coverage', () => {
     it('should document all project endpoints', () => {
-      const projectEndpoints = Object.keys(swaggerSpec.paths).filter(path => path.startsWith('/project.'))
+      const projectEndpoints = Object.keys(swaggerSpec.paths).filter(path =>
+        path.startsWith('/project.')
+      )
       expect(projectEndpoints.length).toBeGreaterThan(0)
 
-      const expectedEndpoints = ['/project.create', '/project.one', '/project.all', '/project.remove']
+      const expectedEndpoints = [
+        '/project.create',
+        '/project.one',
+        '/project.all',
+        '/project.remove'
+      ]
       expectedEndpoints.forEach(endpoint => {
         expect(projectEndpoints).toContain(endpoint)
       })
     })
 
     it('should document all environment endpoints', () => {
-      const envEndpoints = Object.keys(swaggerSpec.paths).filter(path => path.startsWith('/environment.'))
+      const envEndpoints = Object.keys(swaggerSpec.paths).filter(path =>
+        path.startsWith('/environment.')
+      )
       expect(envEndpoints.length).toBeGreaterThan(0)
     })
 
     it('should document all application endpoints', () => {
-      const appEndpoints = Object.keys(swaggerSpec.paths).filter(path => path.startsWith('/application.'))
+      const appEndpoints = Object.keys(swaggerSpec.paths).filter(path =>
+        path.startsWith('/application.')
+      )
       expect(appEndpoints.length).toBeGreaterThan(0)
     })
   })
 })
-

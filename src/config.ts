@@ -63,7 +63,8 @@ export function buildDomainConfig(inputs: ActionInputs): Partial<Domain> | null 
     path: inputs.domainPath || '/',
     port: applicationPort,
     https: inputs.domainHttps !== false,
-    certificateType: (inputs.sslCertificateType as 'letsencrypt' | 'custom' | 'none') || 'letsencrypt',
+    certificateType:
+      (inputs.sslCertificateType as 'letsencrypt' | 'custom' | 'none') || 'letsencrypt',
     domainType: 'application',
     stripPath: inputs.domainStripPath || false
   }

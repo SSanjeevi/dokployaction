@@ -17,6 +17,7 @@ module.exports = {
     jest: true,
     es2022: true
   },
+  ignorePatterns: ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts', 'dist/', 'lib/', 'coverage/'],
   rules: {
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/explicit-function-return-type': 'off',

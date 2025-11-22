@@ -32,7 +32,9 @@ export function parseInputs(): ActionInputs {
     core.error('To fix this:')
     core.error('  1. Go to: Settings → Secrets and variables → Actions')
     core.error('  2. Add a repository secret named DOKPLOY_URL')
-    core.error('  3. Set the value to your Dokploy instance URL (e.g., https://dokploy.example.com)')
+    core.error(
+      '  3. Set the value to your Dokploy instance URL (e.g., https://dokploy.example.com)'
+    )
     core.error('')
     core.error('In your workflow, use:')
     core.error('  with:')
@@ -160,29 +162,25 @@ export function parseInputs(): ActionInputs {
     // Domain & SSL
     domainHost: parseOptionalStringInput('domain-host'),
     domainPath: parseOptionalStringInput('domain-path'),
-    applicationPort: parseIntInput(parseOptionalStringInput('application-port'), 'application-port'),
+    applicationPort: parseIntInput(
+      parseOptionalStringInput('application-port'),
+      'application-port'
+    ),
     domainHttps: parseBooleanInput(parseOptionalStringInput('domain-https')) ?? true,
     sslCertificateType: parseOptionalStringInput('ssl-certificate-type'),
     domainStripPath: parseBooleanInput(parseOptionalStringInput('domain-strip-path')),
-    forceDomainRecreation: parseBooleanInput(
-      parseOptionalStringInput('force-domain-recreation')
-    ),
+    forceDomainRecreation: parseBooleanInput(parseOptionalStringInput('force-domain-recreation')),
 
     // Deployment
     deploymentTitle: parseOptionalStringInput('deployment-title'),
     deploymentDescription: parseOptionalStringInput('deployment-description'),
     rollbackActive: parseBooleanInput(parseOptionalStringInput('rollback-active')),
-    waitForDeployment:
-      parseBooleanInput(parseOptionalStringInput('wait-for-deployment')) ?? true,
-    deploymentTimeout: parseIntInput(
-      parseOptionalStringInput('timeout'),
-      'timeout'
-    ),
+    waitForDeployment: parseBooleanInput(parseOptionalStringInput('wait-for-deployment')) ?? true,
+    deploymentTimeout: parseIntInput(parseOptionalStringInput('timeout'), 'timeout'),
     cleanupOldContainers: parseBooleanInput(parseOptionalStringInput('cleanup-old-containers')),
 
     // Health Check
-    healthCheckEnabled:
-      parseBooleanInput(parseOptionalStringInput('health-check-enabled')) ?? true,
+    healthCheckEnabled: parseBooleanInput(parseOptionalStringInput('health-check-enabled')) ?? true,
     healthCheckPath: parseOptionalStringInput('health-check-path'),
     healthCheckTimeout: parseIntInput(
       parseOptionalStringInput('health-check-timeout'),

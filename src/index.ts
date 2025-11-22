@@ -21,7 +21,6 @@
 import * as core from '@actions/core'
 import { DokployClient } from './client/dokploy-client'
 import { parseInputs } from './inputs'
-import { setOutputs } from './outputs'
 import { performHealthCheck } from './health-check'
 import { buildApplicationConfig, buildDomainConfig, parseEnvironmentVariables } from './config'
 import { sleep } from './utils/helpers'
@@ -91,9 +90,7 @@ export async function run(): Promise<void> {
       const existing = await client.findEnvironmentInProject(projectId, inputs.environmentName)
       if (existing) {
         environmentId = existing.environmentId || existing.id
-        core.info(
-          `✅ Found existing environment: ${inputs.environmentName} (ID: ${environmentId})`
-        )
+        core.info(`✅ Found existing environment: ${inputs.environmentName} (ID: ${environmentId})`)
       } else if (inputs.autoCreateResources) {
         // Always create the requested environment, don't use default if name doesn't match
         // The default environment created with project is named "production" by Dokploy
@@ -264,7 +261,7 @@ export async function run(): Promise<void> {
       core.startGroup('🏥 Health Check')
       const healthStatus = await performHealthCheck(deploymentUrl, inputs)
       core.setOutput('health-check-status', healthStatus)
-      
+
       if (healthStatus === 'unhealthy') {
         core.setOutput('deployment-status', 'failed')
         core.setFailed('❌ Deployment failed: Health check returned unhealthy status')
@@ -273,7 +270,7 @@ export async function run(): Promise<void> {
         core.endGroup()
         throw new Error('Health check failed - deployment marked as failed')
       }
-      
+
       core.endGroup()
     } else {
       core.setOutput('health-check-status', 'skipped')

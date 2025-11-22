@@ -63,17 +63,21 @@ export function logApiRequest(method: string, url: string, body?: unknown): void
     core.info(`📤 API REQUEST: ${method} ${url}`)
     if (body) {
       // Sanitize sensitive data
-      const sanitized = JSON.stringify(body, (key, value) => {
-        if (
-          key.toLowerCase().includes('password') ||
-          key.toLowerCase().includes('token') ||
-          key.toLowerCase().includes('key') ||
-          key.toLowerCase().includes('secret')
-        ) {
-          return '[REDACTED]'
-        }
-        return value
-      }, 2)
+      const sanitized = JSON.stringify(
+        body,
+        (key, value) => {
+          if (
+            key.toLowerCase().includes('password') ||
+            key.toLowerCase().includes('token') ||
+            key.toLowerCase().includes('key') ||
+            key.toLowerCase().includes('secret')
+          ) {
+            return '[REDACTED]'
+          }
+          return value
+        },
+        2
+      )
       core.info(`📤 REQUEST BODY: ${sanitized}`)
     }
   }

@@ -74,7 +74,9 @@ export class DokployClient {
           (response.result as { message?: string })?.message ||
           (response.result as { error?: string })?.error ||
           'Unknown error'
-        throw new Error(`POST ${endpoint} failed with status ${response.statusCode}: ${errorMessage}`)
+        throw new Error(
+          `POST ${endpoint} failed with status ${response.statusCode}: ${errorMessage}`
+        )
       }
 
       return response.result as T
@@ -109,7 +111,12 @@ export class DokployClient {
     description?: string
   ): Promise<{ projectId: string; defaultEnvironmentId?: string }> {
     core.info(`📋 Creating project: ${name}`)
-    const response = await this.post<any>('/api/project.create', {
+    const response = await this.post<{
+      project?: Project
+      environment?: Environment
+      projectId?: string
+      id?: string
+    }>('/api/project.create', {
       name,
       description: description || `Automated deployment project: ${name}`
     })
@@ -150,7 +157,11 @@ export class DokployClient {
 
   async createEnvironment(projectId: string, environmentName: string): Promise<string> {
     core.info(`🌍 Creating environment: ${environmentName}`)
-    const response = await this.post<any>('/api/environment.create', {
+    const response = await this.post<{
+      environment?: Environment
+      environmentId?: string
+      id?: string
+    }>('/api/environment.create', {
       projectId,
       name: environmentName
     })
@@ -228,7 +239,11 @@ export class DokployClient {
     core.info(`📦 Creating application: ${config.name}`)
     debugLog('Application configuration', config)
 
-    const response = await this.post<any>('/api/application.create', config)
+    const response = await this.post<{
+      application?: Application
+      applicationId?: string
+      id?: string
+    }>('/api/application.create', config)
 
     debugLog('Application creation response', response)
 
@@ -340,7 +355,11 @@ export class DokployClient {
     core.info(`✅ Application stopped: ${applicationId}`)
   }
 
-  async deployApplication(applicationId: string, title?: string, description?: string): Promise<Deployment> {
+  async deployApplication(
+    applicationId: string,
+    title?: string,
+    description?: string
+  ): Promise<Deployment> {
     core.info(`🚀 Deploying application: ${applicationId}`)
     debugLog('Deployment params', { applicationId, title, description })
 
