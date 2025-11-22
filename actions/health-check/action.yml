@@ -49,7 +49,7 @@ runs:
         echo "🏥 Performing health check..."
         echo "Base URL: ${{ inputs.deployment-url }}"
         echo "Path: ${{ inputs.health-check-path }}"
-        
+
         # Construct full URL
         full_url="${{ inputs.deployment-url }}${{ inputs.health-check-path }}"
         echo "Full URL: $full_url"
