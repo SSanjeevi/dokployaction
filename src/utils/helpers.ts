@@ -39,7 +39,7 @@ export function parseCpuLimit(value: string | undefined): number | undefined {
   // - Integer values: 1, 2, 4
   // - Millicpu values with 'm' suffix: 500m, 1000m (convert to decimal)
   
-  let cleanValue = value.toString().trim()
+  const cleanValue = value.toString().trim()
   
   // Handle millicpu format (e.g., "500m" = 0.5 CPU)
   if (cleanValue.endsWith('m') || cleanValue.endsWith('M')) {
