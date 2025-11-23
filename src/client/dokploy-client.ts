@@ -261,14 +261,14 @@ export class DokployClient {
     return applicationId
   }
 
-  async updateApplication(applicationId: string, config: Partial<Application>): Promise<void> {
+  async updateApplication(
+    applicationId: string,
+    config: Record<string, unknown>
+  ): Promise<void> {
     core.info(`🔄 Updating application: ${applicationId}`)
     debugLog('Update configuration', config)
 
-    await this.post('/api/application.update', {
-      applicationId,
-      ...config
-    })
+    await this.post('/api/application.update', config)
     core.info(`✅ Updated application: ${applicationId}`)
   }
 

@@ -180,36 +180,51 @@ export async function run(): Promise<void> {
       inputs.restartPolicy !== undefined
     
     if (hasResourceSettings) {
+      const updateConfig: Record<string, unknown> = { applicationId }
+      
+      // Dokploy API expects memory and CPU limits as strings
       if (inputs.memoryLimit !== undefined) {
+        updateConfig.memoryLimit = inputs.memoryLimit.toString()
         core.info(`  Memory Limit: ${inputs.memoryLimit}MB`)
       }
       if (inputs.memoryReservation !== undefined) {
+        updateConfig.memoryReservation = inputs.memoryReservation.toString()
         core.info(`  Memory Reservation: ${inputs.memoryReservation}MB`)
       }
       if (inputs.cpuLimit !== undefined) {
+        updateConfig.cpuLimit = inputs.cpuLimit.toString()
         core.info(`  CPU Limit: ${inputs.cpuLimit}`)
       }
       if (inputs.cpuReservation !== undefined) {
+        updateConfig.cpuReservation = inputs.cpuReservation.toString()
         core.info(`  CPU Reservation: ${inputs.cpuReservation}`)
       }
+      
+      // Replicas is a number
       if (inputs.replicas !== undefined) {
+        updateConfig.replicas = inputs.replicas
         core.info(`  Replicas: ${inputs.replicas}`)
       }
+      
+      // RestartPolicy for Docker Swarm (if provided)
       if (inputs.restartPolicy) {
-        core.info(`  Restart Policy: ${inputs.restartPolicy}`)
+        // Convert simple restart policy to Swarm format
+        const policyMap: Record<string, string> = {
+          'always': 'any',
+          'unless-stopped': 'any',
+          'on-failure': 'on-failure',
+          'no': 'none'
+        }
+        const swarmCondition = policyMap[inputs.restartPolicy] || 'any'
+        updateConfig.restartPolicySwarm = {
+          Condition: swarmCondition
+        }
+        core.info(`  Restart Policy: ${inputs.restartPolicy} (Swarm: ${swarmCondition})`)
       }
       
-      core.info('🔄 Updating application resource settings...')
-      await client.saveApplicationResources(
-        applicationId,
-        inputs.memoryLimit,
-        inputs.memoryReservation,
-        inputs.cpuLimit,
-        inputs.cpuReservation,
-        inputs.replicas,
-        inputs.restartPolicy
-      )
-      core.info('✅ Application resources updated')
+      core.info('🔄 Updating application settings...')
+      await client.updateApplication(applicationId, updateConfig)
+      core.info('✅ Application settings updated')
     } else {
       core.info('ℹ️ No resource settings to update')
     }
