@@ -437,6 +437,7 @@ export class DokployClient {
     const timeoutMs = timeoutSeconds * 1000
     const pollIntervalMs = pollIntervalSeconds * 1000
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const deployment = await this.getDeployment(deploymentId)
       const status = deployment.status

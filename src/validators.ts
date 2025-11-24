@@ -201,7 +201,7 @@ export function validateDockerImage(value: string | undefined, fieldName: string
 
   // Basic Docker image format: [registry/]repository[:tag]
   // Allow alphanumeric, dots, hyphens, slashes, underscores, colons
-  const imageRegex = /^[a-z0-9._\/-]+:[a-z0-9._-]+$/i
+  const imageRegex = /^[a-z0-9._/-]+:[a-z0-9._-]+$/i
 
   if (!imageRegex.test(value)) {
     throw new ValidationError(

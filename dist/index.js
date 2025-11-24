@@ -26002,6 +26002,7 @@ class DokployClient {
         const startTime = Date.now();
         const timeoutMs = timeoutSeconds * 1000;
         const pollIntervalMs = pollIntervalSeconds * 1000;
+        // eslint-disable-next-line no-constant-condition
         while (true) {
             const deployment = await this.getDeployment(deploymentId);
             const status = deployment.status;
@@ -27354,7 +27355,7 @@ function validateDockerImage(value, fieldName) {
     }
     // Basic Docker image format: [registry/]repository[:tag]
     // Allow alphanumeric, dots, hyphens, slashes, underscores, colons
-    const imageRegex = /^[a-z0-9._\/-]+:[a-z0-9._-]+$/i;
+    const imageRegex = /^[a-z0-9._/-]+:[a-z0-9._-]+$/i;
     if (!imageRegex.test(value)) {
         throw new ValidationError(`${fieldName} format is invalid`, fieldName, value, 'Use format: registry/repository:tag (example: ghcr.io/myorg/myapp:v1.0.0)');
     }
