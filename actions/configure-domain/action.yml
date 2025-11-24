@@ -72,21 +72,21 @@ runs:
       shell: bash
       run: |
         echo "🔍 Checking for existing domain..."
-        
+
         # Get application details including domains
         response=$(curl -s -w "\n%{http_code}" -L -X GET \
           "${{ inputs.dokploy-url }}/api/application.one?applicationId=${{ inputs.application-id }}" \
           -H "x-api-key: ${{ inputs.api-key }}" \
           -H "Accept: application/json")
-        
+
         http_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$d')
-        
+
         if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
           # Check if domain with same host already exists
           existing_domain_id=$(echo "$body" | jq -r --arg host "${{ inputs.domain-host }}" \
             '.domains[]? | select(.host == $host) | .domainId // .id // empty')
-          
+
           if [ -n "$existing_domain_id" ]; then
             echo "ℹ️ Domain already exists: ${{ inputs.domain-host }}"
             echo "existing-domain-id=$existing_domain_id" >> $GITHUB_OUTPUT
@@ -109,7 +109,7 @@ runs:
         echo "Port: ${{ inputs.port }}"
         echo "HTTPS: ${{ inputs.https }}"
         echo "Path: ${{ inputs.path }}"
-        
+
         domain_payload="{
           \"host\": \"${{ inputs.domain-host }}\",
           \"port\": ${{ inputs.port }},
@@ -119,7 +119,7 @@ runs:
           \"domainType\": \"application\",
           \"stripPath\": false
         }"
-        
+
         if [ "${{ steps.check.outputs.domain-exists }}" = "true" ]; then
           # Update existing domain
           echo "🔄 Updating existing domain..."
@@ -152,7 +152,7 @@ runs:
             echo "✅ Domain created successfully"
             domain_id=$(echo "$body" | jq -r '.domainId // .id // "unknown"')
           fi
-          
+
           echo "domain-id=$domain_id" >> $GITHUB_OUTPUT
           echo "Domain ID: $domain_id"
 
