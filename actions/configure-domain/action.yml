@@ -67,7 +67,40 @@ runs:
 
         echo "✅ Domain validated: $domain"
 
-    - name: Create domain
+    - name: Check existing domain
+      id: check
+      shell: bash
+      run: |
+        echo "🔍 Checking for existing domain..."
+        
+        # Get application details including domains
+        response=$(curl -s -w "\n%{http_code}" -L -X GET \
+          "${{ inputs.dokploy-url }}/api/application.one?applicationId=${{ inputs.application-id }}" \
+          -H "x-api-key: ${{ inputs.api-key }}" \
+          -H "Accept: application/json")
+        
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
+        
+        if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+          # Check if domain with same host already exists
+          existing_domain_id=$(echo "$body" | jq -r --arg host "${{ inputs.domain-host }}" \
+            '.domains[]? | select(.host == $host) | .domainId // .id // empty')
+          
+          if [ -n "$existing_domain_id" ]; then
+            echo "ℹ️ Domain already exists: ${{ inputs.domain-host }}"
+            echo "existing-domain-id=$existing_domain_id" >> $GITHUB_OUTPUT
+            echo "domain-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Domain does not exist, will create new"
+            echo "domain-exists=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "⚠️ Failed to check existing domains (HTTP $http_code), will attempt to create"
+          echo "domain-exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create or update domain
       id: create
       shell: bash
       run: |
@@ -76,30 +109,50 @@ runs:
         echo "Port: ${{ inputs.port }}"
         echo "HTTPS: ${{ inputs.https }}"
         echo "Path: ${{ inputs.path }}"
+        
+        domain_payload="{
+          \"host\": \"${{ inputs.domain-host }}\",
+          \"port\": ${{ inputs.port }},
+          \"https\": ${{ inputs.https }},
+          \"path\": \"${{ inputs.path }}\",
+          \"certificateType\": \"letsencrypt\",
+          \"domainType\": \"application\",
+          \"stripPath\": false
+        }"
+        
+        if [ "${{ steps.check.outputs.domain-exists }}" = "true" ]; then
+          # Update existing domain
+          echo "🔄 Updating existing domain..."
+          api_endpoint="domain.update"
+          domain_payload=$(echo "$domain_payload" | jq --arg id "${{ steps.check.outputs.existing-domain-id }}" \
+            '. + {domainId: $id}')
+        else
+          # Create new domain
+          echo "➕ Creating new domain..."
+          api_endpoint="domain.create"
+          domain_payload=$(echo "$domain_payload" | jq --arg id "${{ inputs.application-id }}" \
+            '. + {applicationId: $id}')
+        fi
 
         response=$(curl -s -w "\n%{http_code}" -L -X POST \
-          "${{ inputs.dokploy-url }}/api/domain.create" \
+          "${{ inputs.dokploy-url }}/api/$api_endpoint" \
           -H "x-api-key: ${{ inputs.api-key }}" \
           -H "Content-Type: application/json" \
           -H "Accept: application/json" \
-          -d "{
-            \"applicationId\": \"${{ inputs.application-id }}\",
-            \"host\": \"${{ inputs.domain-host }}\",
-            \"port\": ${{ inputs.port }},
-            \"https\": ${{ inputs.https }},
-            \"path\": \"${{ inputs.path }}\",
-            \"certificateType\": \"letsencrypt\",
-            \"domainType\": \"application\",
-            \"stripPath\": false
-          }")
+          -d "$domain_payload")
 
         http_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$d')
 
         if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
-          echo "✅ Domain configured successfully"
-
-          domain_id=$(echo "$body" | jq -r '.domainId // .id // "unknown"')
+          if [ "${{ steps.check.outputs.domain-exists }}" = "true" ]; then
+            echo "✅ Domain updated successfully"
+            domain_id="${{ steps.check.outputs.existing-domain-id }}"
+          else
+            echo "✅ Domain created successfully"
+            domain_id=$(echo "$body" | jq -r '.domainId // .id // "unknown"')
+          fi
+          
           echo "domain-id=$domain_id" >> $GITHUB_OUTPUT
           echo "Domain ID: $domain_id"
 
