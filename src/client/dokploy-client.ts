@@ -204,7 +204,8 @@ export class DokployClient {
   async findServerByName(serverName: string): Promise<Server | undefined> {
     debugLog(`Finding server by name: ${serverName}`)
     const servers = await this.getAllServers()
-    return servers.find(s => s.name === serverName)
+    // Case-insensitive lookup to handle DNS-compliant lowercase names
+    return servers.find(s => s.name.toLowerCase() === serverName.toLowerCase())
   }
 
   async resolveServerId(serverId?: string, serverName?: string): Promise<string> {
