@@ -24,6 +24,7 @@ import { parseInputs } from './inputs'
 import { performHealthCheck } from './health-check'
 import { buildApplicationConfig, buildDomainConfig, parseEnvironmentVariables } from './config'
 import { sleep } from './utils/helpers'
+import { validateAllInputs, ValidationError, formatValidationError } from './validators'
 
 export async function run(): Promise<void> {
   try {
@@ -33,12 +34,40 @@ export async function run(): Promise<void> {
     // ====================================================================
     // Step 1: Parse and validate inputs
     // ====================================================================
-    core.startGroup('📋 Parsing inputs')
+    core.startGroup('📋 Parsing and Validating Inputs')
     const inputs = parseInputs()
+    
+    // Validate all inputs before proceeding
+    try {
+      validateAllInputs({
+        dockerImage: inputs.dockerImage,
+        applicationName: inputs.applicationName,
+        projectName: inputs.projectName,
+        environmentName: inputs.environmentName,
+        memoryLimit: inputs.memoryLimit,
+        memoryReservation: inputs.memoryReservation,
+        cpuLimit: inputs.cpuLimit,
+        cpuReservation: inputs.cpuReservation,
+        port: inputs.port,
+        targetPort: inputs.targetPort,
+        applicationPort: inputs.applicationPort,
+        replicas: inputs.replicas,
+        domainHost: inputs.domainHost
+      })
+      core.info('✅ All inputs validated successfully')
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        core.error(formatValidationError(error))
+      }
+      throw error
+    }
+    
     core.info(`✅ Docker Image: ${inputs.dockerImage}`)
     core.info(`✅ Environment: ${inputs.environmentName}`)
     if (inputs.serverName) core.info(`✅ Server: ${inputs.serverName}`)
     if (inputs.domainHost) core.info(`✅ Domain: ${inputs.domainHost}`)
+    if (inputs.memoryLimit) core.info(`✅ Memory Limit: ${inputs.memoryLimit}MB`)
+    if (inputs.cpuLimit) core.info(`✅ CPU Limit: ${inputs.cpuLimit}`)
     core.endGroup()
 
     // ====================================================================
@@ -343,22 +372,129 @@ export async function run(): Promise<void> {
     // Step 11: Deploy application
     // ====================================================================
     core.startGroup('🚀 Deployment')
-    await client.deployApplication(
-      applicationId,
-      inputs.deploymentTitle || `Deploy ${inputs.dockerImage}`,
-      inputs.deploymentDescription || 'Automated deployment via GitHub Actions'
-    )
-    core.setOutput('deployment-status', 'success')
+    let deploymentId: string | undefined
+    try {
+      const deploymentResult = await client.deployApplication(
+        applicationId,
+        inputs.deploymentTitle || `Deploy ${inputs.dockerImage}`,
+        inputs.deploymentDescription || 'Automated deployment via GitHub Actions'
+      )
+      
+      // Capture deployment ID for tracking
+      deploymentId = deploymentResult.deploymentId || deploymentResult.id
+      if (deploymentId) {
+        core.setOutput('deployment-id', deploymentId)
+        core.info(`✅ Deployment ID: ${deploymentId}`)
+      }
+    } catch (deployError) {
+      core.setOutput('deployment-status', 'failed')
+      
+      // Extract and display detailed error information
+      const errorMessage = deployError instanceof Error ? deployError.message : String(deployError)
+      
+      core.error('❌ Deployment Failed')
+      core.error('='.repeat(60))
+      core.error('')
+      
+      // Parse common Dokploy API errors
+      if (errorMessage.includes('invalid memory value')) {
+        const match = errorMessage.match(/invalid memory value (\d+): Must be at least (\d+)/)
+        if (match) {
+          core.error(`Memory Configuration Error:`)
+          core.error(`  Current value: ${match[1]}MB`)
+          core.error(`  Minimum required: ${match[2]}MB (4MiB)`)
+          core.error('')
+          core.error(`💡 Fix: Set memory-limit and memory-reservation to at least 4MB`)
+          core.error(`   Recommended values: 128MB, 256MB, 512MB, 1024MB`)
+        } else {
+          core.error(`Memory value is too low. Dokploy requires at least 4MiB.`)
+          core.error(`💡 Set memory-limit to at least 4MB (recommended: 128MB or higher)`)
+        }
+      } else if (errorMessage.includes('invalid cpu value')) {
+        const match = errorMessage.match(/invalid cpu value ([0-9.e-]+): Must be at least ([0-9.]+)/)
+        if (match) {
+          core.error(`CPU Configuration Error:`)
+          core.error(`  Current value: ${match[1]}`)
+          core.error(`  Minimum required: ${match[2]}`)
+          core.error('')
+          core.error(`💡 Fix: Set cpu-limit and cpu-reservation to at least 0.001`)
+          core.error(`   Common values: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU)`)
+        } else {
+          core.error(`CPU value is too low. Dokploy requires at least 0.001.`)
+          core.error(`💡 Set cpu-limit to at least 0.001 (recommended: 0.1 or higher)`)
+        }
+      } else if (errorMessage.includes('name must be valid as a DNS name component')) {
+        core.error(`DNS Name Validation Error:`)
+        core.error(`  One or more names (application, project, or environment) are invalid.`)
+        core.error('')
+        core.error(`DNS names must:`)
+        core.error(`  • Contain only lowercase letters, numbers, and hyphens`)
+        core.error(`  • Start and end with a letter or number`)
+        core.error(`  • Be 63 characters or less`)
+        core.error('')
+        core.error(`💡 Fix: Check your application-name, project-name, and environment-name inputs`)
+        if (inputs.applicationName) {
+          core.error(`   Application: "${inputs.applicationName}"`)
+        }
+        if (inputs.projectName) {
+          core.error(`   Project: "${inputs.projectName}"`)
+        }
+        if (inputs.environmentName) {
+          core.error(`   Environment: "${inputs.environmentName}"`)
+        }
+      } else {
+        // Generic error
+        core.error(`Error: ${errorMessage}`)
+      }
+      
+      core.error('')
+      core.error('='.repeat(60))
+      core.endGroup()
+      throw deployError
+    }
     core.endGroup()
 
     // ====================================================================
     // Step 12: Wait for deployment (if enabled)
     // ====================================================================
-    if (inputs.waitForDeployment) {
-      core.info('⏳ Waiting for deployment to complete...')
-      const timeout = inputs.deploymentTimeout || 300
-      core.info(`   Deployment timeout: ${timeout}s`)
-      await sleep(Math.min(60000, (timeout * 1000) / 5))
+    if (inputs.waitForDeployment && deploymentId) {
+      core.startGroup('⏳ Waiting for Deployment')
+      try {
+        const timeout = inputs.deploymentTimeout || 300
+        const finalDeployment = await client.waitForDeployment(deploymentId, timeout)
+        core.setOutput('deployment-status', finalDeployment.status || 'completed')
+        core.info(`✅ Deployment completed in ${Math.round(((Date.now() - Date.parse(finalDeployment.startedAt || '')) / 1000))}s`)
+      } catch (waitError) {
+        core.setOutput('deployment-status', 'failed')
+        const errorMessage = waitError instanceof Error ? waitError.message : String(waitError)
+        core.error(`❌ Deployment wait failed: ${errorMessage}`)
+        
+        // Try to get deployment logs for debugging
+        if (deploymentId) {
+          try {
+            const logs = await client.getDeploymentLogs(deploymentId)
+            if (logs) {
+              core.error('')
+              core.error('Deployment Logs:')
+              core.error('='.repeat(60))
+              core.error(logs)
+              core.error('='.repeat(60))
+            }
+          } catch (logError) {
+            core.warning('Could not retrieve deployment logs')
+          }
+        }
+        
+        core.endGroup()
+        throw waitError
+      }
+      core.endGroup()
+    } else if (inputs.waitForDeployment && !deploymentId) {
+      core.warning('⚠️ wait-for-deployment enabled but no deployment ID available, skipping wait')
+      core.setOutput('deployment-status', 'success')
+    } else {
+      // Not waiting for deployment, assume success
+      core.setOutput('deployment-status', 'success')
     }
 
     // ====================================================================

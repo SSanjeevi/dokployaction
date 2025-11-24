@@ -53,6 +53,9 @@ That's it! Your application will be deployed with health checks and optional con
 - **Flexible Error Handling**: Option to continue deployment even if health check fails for manual verification
 - **Container Cleanup**: Optional cleanup of old containers before deployment
 - **Deployment Status**: Clear success/failure reporting
+- **🆕 Input Validation**: Pre-deployment validation catches configuration errors early
+- **🆕 Deployment Logs**: Automatic retrieval and display of deployment logs on failure
+- **🆕 Error Analysis**: Detailed error messages with fix suggestions for common issues
 
 ### 📦 Configuration Options
 
@@ -309,6 +312,125 @@ The main action (`SSanjeevi/dokployaction@v1`) supports the following inputs:
 
     # Rollback
     rollback-on-failure: true
+```
+
+---
+
+## ✅ Input Validation
+
+**New in v1.1**: The action now includes comprehensive pre-deployment validation to catch configuration errors before attempting deployment.
+
+### Validated Inputs
+
+The following inputs are validated before deployment:
+
+#### Resource Limits
+- **Memory Limits** (`memory-limit`, `memory-reservation`):
+  - ✅ Must be at least **4MB** (Dokploy minimum: 4MiB)
+  - ❌ Common mistake: Setting to 128 or 256 (too low)
+  - 💡 Recommended: 128MB, 256MB, 512MB, 1024MB
+
+- **CPU Limits** (`cpu-limit`, `cpu-reservation`):
+  - ✅ Must be at least **0.001** (1 millicpu)
+  - ❌ Common mistake: Scientific notation (1e-09) too low
+  - 💡 Recommended: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU)
+
+#### DNS Names
+- **Application Name**, **Project Name**, **Environment Name**:
+  - ✅ Must be valid DNS labels (RFC 1123)
+  - ✅ Lowercase letters, numbers, and hyphens only
+  - ✅ Must start and end with alphanumeric character
+  - ✅ Maximum 63 characters
+  - ❌ Cannot contain: Uppercase, underscores, dots, special chars
+  - 💡 Example: `my-app-staging` ✅, `My_App-Staging` ❌
+
+#### Other Validations
+- **Ports**: Must be 1-65535
+- **Replicas**: Must be non-negative (0 to stop, 1+ to run)
+- **Docker Image**: Must be in format `registry/repo:tag`
+- **Domain Host**: Must be valid FQDN (e.g., `app.example.com`)
+
+### Validation Error Messages
+
+When validation fails, you'll see detailed error messages with fix suggestions:
+
+```
+❌ Validation failed with the following errors:
+
+1. memory-limit must be at least 4MiB (got 128MB)
+   💡 Suggestion: Set memory-limit to at least 4MB. Common values: 128MB, 256MB, 512MB, 1024MB
+
+2. cpu-limit must be at least 0.001 (got 1e-09)
+   💡 Suggestion: Set cpu-limit to at least 0.001. Common values: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU), 2.0 (2 CPUs)
+
+3. application-name must be a valid DNS name: contains uppercase letters (must be lowercase)
+   💡 Suggestion: Convert "My-App" to a valid DNS name. Example: "my-app"
+```
+
+### Deployment Error Analysis
+
+If deployment fails, the action provides detailed error analysis with fix suggestions:
+
+#### Memory Configuration Error
+```
+❌ Deployment Failed
+============================================================
+
+Memory Configuration Error:
+  Current value: 256MB
+  Minimum required: 4MB (4MiB)
+
+💡 Fix: Set memory-limit and memory-reservation to at least 4MB
+   Recommended values: 128MB, 256MB, 512MB, 1024MB
+```
+
+#### CPU Configuration Error
+```
+❌ Deployment Failed
+============================================================
+
+CPU Configuration Error:
+  Current value: 1e-09
+  Minimum required: 0.001
+
+💡 Fix: Set cpu-limit and cpu-reservation to at least 0.001
+   Common values: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU)
+```
+
+#### DNS Name Validation Error
+```
+❌ Deployment Failed
+============================================================
+
+DNS Name Validation Error:
+  One or more names (application, project, or environment) are invalid.
+
+DNS names must:
+  • Contain only lowercase letters, numbers, and hyphens
+  • Start and end with a letter or number
+  • Be 63 characters or less
+
+💡 Fix: Check your application-name, project-name, and environment-name inputs
+   Application: "My_App-Staging"
+   Project: "my-project"
+   Environment: "staging"
+```
+
+### Deployment Logs on Failure
+
+When `wait-for-deployment: true` is enabled and deployment fails, the action automatically retrieves and displays deployment logs:
+
+```
+❌ Deployment wait failed: Deployment failed - check logs above for details
+
+Deployment Logs:
+============================================================
+[2024-11-24 12:49:00] Starting deployment...
+[2024-11-24 12:49:01] Pulling image ghcr.io/user/app:v1.0.0...
+[2024-11-24 12:49:05] Creating service...
+[2024-11-24 12:49:06] Error: invalid memory value 256: Must be at least 4MiB
+[2024-11-24 12:49:06] Deployment failed
+============================================================
 ```
 
 ---

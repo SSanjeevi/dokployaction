@@ -41,6 +41,9 @@ export declare class DokployClient {
     getDomains(applicationId: string): Promise<Domain[]>;
     stopApplication(applicationId: string): Promise<void>;
     deployApplication(applicationId: string, title?: string, description?: string): Promise<Deployment>;
+    getDeployment(deploymentId: string): Promise<Deployment>;
+    getDeploymentLogs(deploymentId: string): Promise<string>;
+    waitForDeployment(deploymentId: string, timeoutSeconds?: number, pollIntervalSeconds?: number): Promise<Deployment>;
     getContainers(applicationId: string): Promise<Container[]>;
     removeContainer(containerName: string): Promise<void>;
 }

@@ -25988,6 +25988,43 @@ class DokployClient {
         core.info(`✅ Deployment triggered: ${applicationId}`);
         return result;
     }
+    async getDeployment(deploymentId) {
+        (0, helpers_1.debugLog)(`Fetching deployment: ${deploymentId}`);
+        return await this.get(`/api/deployment.one?deploymentId=${deploymentId}`);
+    }
+    async getDeploymentLogs(deploymentId) {
+        (0, helpers_1.debugLog)(`Fetching deployment logs: ${deploymentId}`);
+        const deployment = await this.getDeployment(deploymentId);
+        return deployment.logs || '';
+    }
+    async waitForDeployment(deploymentId, timeoutSeconds = 300, pollIntervalSeconds = 5) {
+        core.info(`⏳ Waiting for deployment to complete (timeout: ${timeoutSeconds}s)`);
+        const startTime = Date.now();
+        const timeoutMs = timeoutSeconds * 1000;
+        const pollIntervalMs = pollIntervalSeconds * 1000;
+        while (true) {
+            const deployment = await this.getDeployment(deploymentId);
+            const status = deployment.status;
+            if (status === 'completed') {
+                core.info(`✅ Deployment completed successfully`);
+                return deployment;
+            }
+            if (status === 'failed') {
+                core.error(`❌ Deployment failed`);
+                if (deployment.logs) {
+                    core.error('Deployment logs:');
+                    core.error(deployment.logs);
+                }
+                throw new Error('Deployment failed - check logs above for details');
+            }
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= timeoutMs) {
+                throw new Error(`Deployment timeout after ${timeoutSeconds}s (status: ${status})`);
+            }
+            core.info(`  Status: ${status} (${Math.round(elapsed / 1000)}s elapsed)`);
+            await (0, helpers_1.sleep)(pollIntervalMs);
+        }
+    }
     // ========================================================================
     // Container Operations
     // ========================================================================
@@ -26291,6 +26328,7 @@ const inputs_1 = __nccwpck_require__(8422);
 const health_check_1 = __nccwpck_require__(3176);
 const config_1 = __nccwpck_require__(2973);
 const helpers_1 = __nccwpck_require__(2096);
+const validators_1 = __nccwpck_require__(3464);
 async function run() {
     try {
         core.info('🚀 Dokploy Deployment Action v1.0');
@@ -26298,14 +26336,43 @@ async function run() {
         // ====================================================================
         // Step 1: Parse and validate inputs
         // ====================================================================
-        core.startGroup('📋 Parsing inputs');
+        core.startGroup('📋 Parsing and Validating Inputs');
         const inputs = (0, inputs_1.parseInputs)();
+        // Validate all inputs before proceeding
+        try {
+            (0, validators_1.validateAllInputs)({
+                dockerImage: inputs.dockerImage,
+                applicationName: inputs.applicationName,
+                projectName: inputs.projectName,
+                environmentName: inputs.environmentName,
+                memoryLimit: inputs.memoryLimit,
+                memoryReservation: inputs.memoryReservation,
+                cpuLimit: inputs.cpuLimit,
+                cpuReservation: inputs.cpuReservation,
+                port: inputs.port,
+                targetPort: inputs.targetPort,
+                applicationPort: inputs.applicationPort,
+                replicas: inputs.replicas,
+                domainHost: inputs.domainHost
+            });
+            core.info('✅ All inputs validated successfully');
+        }
+        catch (error) {
+            if (error instanceof validators_1.ValidationError) {
+                core.error((0, validators_1.formatValidationError)(error));
+            }
+            throw error;
+        }
         core.info(`✅ Docker Image: ${inputs.dockerImage}`);
         core.info(`✅ Environment: ${inputs.environmentName}`);
         if (inputs.serverName)
             core.info(`✅ Server: ${inputs.serverName}`);
         if (inputs.domainHost)
             core.info(`✅ Domain: ${inputs.domainHost}`);
+        if (inputs.memoryLimit)
+            core.info(`✅ Memory Limit: ${inputs.memoryLimit}MB`);
+        if (inputs.cpuLimit)
+            core.info(`✅ CPU Limit: ${inputs.cpuLimit}`);
         core.endGroup();
         // ====================================================================
         // Step 2: Initialize Dokploy client
@@ -26560,17 +26627,127 @@ async function run() {
         // Step 11: Deploy application
         // ====================================================================
         core.startGroup('🚀 Deployment');
-        await client.deployApplication(applicationId, inputs.deploymentTitle || `Deploy ${inputs.dockerImage}`, inputs.deploymentDescription || 'Automated deployment via GitHub Actions');
-        core.setOutput('deployment-status', 'success');
+        let deploymentId;
+        try {
+            const deploymentResult = await client.deployApplication(applicationId, inputs.deploymentTitle || `Deploy ${inputs.dockerImage}`, inputs.deploymentDescription || 'Automated deployment via GitHub Actions');
+            // Capture deployment ID for tracking
+            deploymentId = deploymentResult.deploymentId || deploymentResult.id;
+            if (deploymentId) {
+                core.setOutput('deployment-id', deploymentId);
+                core.info(`✅ Deployment ID: ${deploymentId}`);
+            }
+        }
+        catch (deployError) {
+            core.setOutput('deployment-status', 'failed');
+            // Extract and display detailed error information
+            const errorMessage = deployError instanceof Error ? deployError.message : String(deployError);
+            core.error('❌ Deployment Failed');
+            core.error('='.repeat(60));
+            core.error('');
+            // Parse common Dokploy API errors
+            if (errorMessage.includes('invalid memory value')) {
+                const match = errorMessage.match(/invalid memory value (\d+): Must be at least (\d+)/);
+                if (match) {
+                    core.error(`Memory Configuration Error:`);
+                    core.error(`  Current value: ${match[1]}MB`);
+                    core.error(`  Minimum required: ${match[2]}MB (4MiB)`);
+                    core.error('');
+                    core.error(`💡 Fix: Set memory-limit and memory-reservation to at least 4MB`);
+                    core.error(`   Recommended values: 128MB, 256MB, 512MB, 1024MB`);
+                }
+                else {
+                    core.error(`Memory value is too low. Dokploy requires at least 4MiB.`);
+                    core.error(`💡 Set memory-limit to at least 4MB (recommended: 128MB or higher)`);
+                }
+            }
+            else if (errorMessage.includes('invalid cpu value')) {
+                const match = errorMessage.match(/invalid cpu value ([0-9.e-]+): Must be at least ([0-9.]+)/);
+                if (match) {
+                    core.error(`CPU Configuration Error:`);
+                    core.error(`  Current value: ${match[1]}`);
+                    core.error(`  Minimum required: ${match[2]}`);
+                    core.error('');
+                    core.error(`💡 Fix: Set cpu-limit and cpu-reservation to at least 0.001`);
+                    core.error(`   Common values: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU)`);
+                }
+                else {
+                    core.error(`CPU value is too low. Dokploy requires at least 0.001.`);
+                    core.error(`💡 Set cpu-limit to at least 0.001 (recommended: 0.1 or higher)`);
+                }
+            }
+            else if (errorMessage.includes('name must be valid as a DNS name component')) {
+                core.error(`DNS Name Validation Error:`);
+                core.error(`  One or more names (application, project, or environment) are invalid.`);
+                core.error('');
+                core.error(`DNS names must:`);
+                core.error(`  • Contain only lowercase letters, numbers, and hyphens`);
+                core.error(`  • Start and end with a letter or number`);
+                core.error(`  • Be 63 characters or less`);
+                core.error('');
+                core.error(`💡 Fix: Check your application-name, project-name, and environment-name inputs`);
+                if (inputs.applicationName) {
+                    core.error(`   Application: "${inputs.applicationName}"`);
+                }
+                if (inputs.projectName) {
+                    core.error(`   Project: "${inputs.projectName}"`);
+                }
+                if (inputs.environmentName) {
+                    core.error(`   Environment: "${inputs.environmentName}"`);
+                }
+            }
+            else {
+                // Generic error
+                core.error(`Error: ${errorMessage}`);
+            }
+            core.error('');
+            core.error('='.repeat(60));
+            core.endGroup();
+            throw deployError;
+        }
         core.endGroup();
         // ====================================================================
         // Step 12: Wait for deployment (if enabled)
         // ====================================================================
-        if (inputs.waitForDeployment) {
-            core.info('⏳ Waiting for deployment to complete...');
-            const timeout = inputs.deploymentTimeout || 300;
-            core.info(`   Deployment timeout: ${timeout}s`);
-            await (0, helpers_1.sleep)(Math.min(60000, (timeout * 1000) / 5));
+        if (inputs.waitForDeployment && deploymentId) {
+            core.startGroup('⏳ Waiting for Deployment');
+            try {
+                const timeout = inputs.deploymentTimeout || 300;
+                const finalDeployment = await client.waitForDeployment(deploymentId, timeout);
+                core.setOutput('deployment-status', finalDeployment.status || 'completed');
+                core.info(`✅ Deployment completed in ${Math.round(((Date.now() - Date.parse(finalDeployment.startedAt || '')) / 1000))}s`);
+            }
+            catch (waitError) {
+                core.setOutput('deployment-status', 'failed');
+                const errorMessage = waitError instanceof Error ? waitError.message : String(waitError);
+                core.error(`❌ Deployment wait failed: ${errorMessage}`);
+                // Try to get deployment logs for debugging
+                if (deploymentId) {
+                    try {
+                        const logs = await client.getDeploymentLogs(deploymentId);
+                        if (logs) {
+                            core.error('');
+                            core.error('Deployment Logs:');
+                            core.error('='.repeat(60));
+                            core.error(logs);
+                            core.error('='.repeat(60));
+                        }
+                    }
+                    catch (logError) {
+                        core.warning('Could not retrieve deployment logs');
+                    }
+                }
+                core.endGroup();
+                throw waitError;
+            }
+            core.endGroup();
+        }
+        else if (inputs.waitForDeployment && !deploymentId) {
+            core.warning('⚠️ wait-for-deployment enabled but no deployment ID available, skipping wait');
+            core.setOutput('deployment-status', 'success');
+        }
+        else {
+            // Not waiting for deployment, assume success
+            core.setOutput('deployment-status', 'success');
         }
         // ====================================================================
         // Step 13: Health check (if enabled)
@@ -26982,6 +27159,327 @@ function sanitizeSecret(value) {
     if (value && value.trim() !== '') {
         core.setSecret(value);
     }
+}
+
+
+/***/ }),
+
+/***/ 3464:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Input Validation Module for Dokploy Deployments
+ *
+ * Validates all inputs before deployment to catch errors early
+ * and provide helpful error messages to users.
+ *
+ * Based on Dokploy API constraints:
+ * - Memory: Minimum 4MiB (not 128MB or 256MB)
+ * - CPU: Minimum 0.001 (not 1e-09)
+ * - Names: Must be valid DNS names
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ValidationError = void 0;
+exports.validateMemory = validateMemory;
+exports.validateCpu = validateCpu;
+exports.validateDnsName = validateDnsName;
+exports.validatePort = validatePort;
+exports.validateReplicas = validateReplicas;
+exports.validateDomainHost = validateDomainHost;
+exports.validateDockerImage = validateDockerImage;
+exports.validateAllInputs = validateAllInputs;
+exports.formatValidationError = formatValidationError;
+const core = __importStar(__nccwpck_require__(7484));
+/**
+ * Validation error with detailed context
+ */
+class ValidationError extends Error {
+    field;
+    value;
+    suggestion;
+    constructor(message, field, value, suggestion) {
+        super(message);
+        this.field = field;
+        this.value = value;
+        this.suggestion = suggestion;
+        this.name = 'ValidationError';
+    }
+}
+exports.ValidationError = ValidationError;
+/**
+ * Validate memory value (in MB)
+ * Dokploy requires minimum 4MiB (4 MB)
+ */
+function validateMemory(value, fieldName) {
+    if (value === undefined) {
+        return; // Optional field
+    }
+    const MIN_MEMORY_MB = 4;
+    if (value < MIN_MEMORY_MB) {
+        throw new ValidationError(`${fieldName} must be at least ${MIN_MEMORY_MB}MiB (got ${value}MB)`, fieldName, value, `Set ${fieldName} to at least ${MIN_MEMORY_MB}MB. Common values: 128MB, 256MB, 512MB, 1024MB`);
+    }
+    if (value > 32768) {
+        core.warning(`⚠️ ${fieldName} is very high (${value}MB). Consider if this is intentional.`);
+    }
+}
+/**
+ * Validate CPU value
+ * Dokploy requires minimum 0.001 (1 millicpu)
+ */
+function validateCpu(value, fieldName) {
+    if (value === undefined) {
+        return; // Optional field
+    }
+    const MIN_CPU = 0.001;
+    if (value < MIN_CPU) {
+        throw new ValidationError(`${fieldName} must be at least ${MIN_CPU} (got ${value})`, fieldName, value, `Set ${fieldName} to at least ${MIN_CPU}. Common values: 0.1 (100m), 0.25 (250m), 0.5 (500m), 1.0 (1 CPU), 2.0 (2 CPUs)`);
+    }
+    if (value > 64) {
+        core.warning(`⚠️ ${fieldName} is very high (${value} CPUs). Consider if this is intentional.`);
+    }
+}
+/**
+ * Validate DNS name component
+ * Must follow RFC 1123: lowercase alphanumeric and hyphens, cannot start/end with hyphen
+ */
+function validateDnsName(value, fieldName) {
+    if (!value) {
+        return; // Optional field
+    }
+    // RFC 1123 DNS label rules:
+    // - Must contain only lowercase alphanumeric characters or '-'
+    // - Must start with an alphanumeric character
+    // - Must end with an alphanumeric character
+    // - Maximum length 63 characters
+    const dnsRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+    if (!dnsRegex.test(value)) {
+        const issues = [];
+        if (value.length > 63) {
+            issues.push('exceeds 63 character limit');
+        }
+        if (!/^[a-z0-9-]+$/.test(value)) {
+            issues.push('contains invalid characters (only lowercase letters, numbers, and hyphens allowed)');
+        }
+        if (/^-/.test(value)) {
+            issues.push('starts with a hyphen');
+        }
+        if (/-$/.test(value)) {
+            issues.push('ends with a hyphen');
+        }
+        if (/[A-Z]/.test(value)) {
+            issues.push('contains uppercase letters (must be lowercase)');
+        }
+        throw new ValidationError(`${fieldName} must be a valid DNS name: ${issues.join(', ')}`, fieldName, value, `Convert "${value}" to a valid DNS name. Example: "${value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').substring(0, 63)}"`);
+    }
+}
+/**
+ * Validate port number
+ */
+function validatePort(value, fieldName) {
+    if (value === undefined) {
+        return; // Optional field
+    }
+    if (value < 1 || value > 65535) {
+        throw new ValidationError(`${fieldName} must be between 1 and 65535 (got ${value})`, fieldName, value, 'Use a valid port number between 1 and 65535. Common ports: 80 (HTTP), 443 (HTTPS), 3000, 8080');
+    }
+}
+/**
+ * Validate replica count
+ */
+function validateReplicas(value, fieldName) {
+    if (value === undefined) {
+        return; // Optional field
+    }
+    if (value < 0) {
+        throw new ValidationError(`${fieldName} must be non-negative (got ${value})`, fieldName, value, 'Set replicas to 0 to stop the application, or 1+ to run containers');
+    }
+    if (value > 100) {
+        core.warning(`⚠️ ${fieldName} is very high (${value}). This will create ${value} containers. Consider if this is intentional.`);
+    }
+}
+/**
+ * Validate domain host format
+ */
+function validateDomainHost(value, fieldName) {
+    if (!value) {
+        return; // Optional field
+    }
+    // Basic domain validation (not exhaustive, but catches common errors)
+    const domainRegex = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+    if (!domainRegex.test(value)) {
+        throw new ValidationError(`${fieldName} is not a valid domain name`, fieldName, value, 'Use a valid fully-qualified domain name. Example: app.example.com, api.mydomain.com');
+    }
+}
+/**
+ * Validate Docker image format
+ */
+function validateDockerImage(value, fieldName) {
+    if (!value) {
+        throw new ValidationError(`${fieldName} is required`, fieldName, value, 'Provide a Docker image in format: registry/repo:tag (example: ghcr.io/user/app:latest)');
+    }
+    // Basic Docker image format: [registry/]repository[:tag]
+    // Allow alphanumeric, dots, hyphens, slashes, underscores, colons
+    const imageRegex = /^[a-z0-9._\/-]+:[a-z0-9._-]+$/i;
+    if (!imageRegex.test(value)) {
+        throw new ValidationError(`${fieldName} format is invalid`, fieldName, value, 'Use format: registry/repository:tag (example: ghcr.io/myorg/myapp:v1.0.0)');
+    }
+}
+/**
+ * Validate all inputs before deployment
+ * Throws ValidationError if any validation fails
+ */
+function validateAllInputs(inputs) {
+    const errors = [];
+    try {
+        validateDockerImage(inputs.dockerImage, 'docker-image');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateDnsName(inputs.applicationName, 'application-name');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateDnsName(inputs.projectName, 'project-name');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateDnsName(inputs.environmentName, 'environment-name');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateMemory(inputs.memoryLimit, 'memory-limit');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateMemory(inputs.memoryReservation, 'memory-reservation');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateCpu(inputs.cpuLimit, 'cpu-limit');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateCpu(inputs.cpuReservation, 'cpu-reservation');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validatePort(inputs.port, 'port');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validatePort(inputs.targetPort, 'target-port');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validatePort(inputs.applicationPort, 'application-port');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateReplicas(inputs.replicas, 'replicas');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    try {
+        validateDomainHost(inputs.domainHost, 'domain-host');
+    }
+    catch (e) {
+        if (e instanceof ValidationError)
+            errors.push(e);
+    }
+    if (errors.length > 0) {
+        core.error('❌ Validation failed with the following errors:');
+        core.error('');
+        errors.forEach((error, index) => {
+            core.error(`${index + 1}. ${error.message}`);
+            if (error.suggestion) {
+                core.error(`   💡 Suggestion: ${error.suggestion}`);
+            }
+            core.error('');
+        });
+        throw new Error(`Input validation failed with ${errors.length} error${errors.length > 1 ? 's' : ''}. See details above.`);
+    }
+}
+/**
+ * Format validation errors for user-friendly display
+ */
+function formatValidationError(error) {
+    let message = `❌ Validation Error: ${error.message}\n`;
+    message += `   Field: ${error.field}\n`;
+    message += `   Value: ${JSON.stringify(error.value)}\n`;
+    if (error.suggestion) {
+        message += `   💡 Suggestion: ${error.suggestion}\n`;
+    }
+    return message;
 }
 
 

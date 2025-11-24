@@ -15,7 +15,7 @@ import type {
   Container,
   Deployment
 } from '../types/dokploy'
-import { debugLog, logApiRequest, logApiResponse } from '../utils/helpers'
+import { debugLog, logApiRequest, logApiResponse, sleep } from '../utils/helpers'
 
 export class DokployClient {
   private baseUrl: string
@@ -414,6 +414,57 @@ export class DokployClient {
     })
     core.info(`✅ Deployment triggered: ${applicationId}`)
     return result
+  }
+
+  async getDeployment(deploymentId: string): Promise<Deployment> {
+    debugLog(`Fetching deployment: ${deploymentId}`)
+    return await this.get<Deployment>(`/api/deployment.one?deploymentId=${deploymentId}`)
+  }
+
+  async getDeploymentLogs(deploymentId: string): Promise<string> {
+    debugLog(`Fetching deployment logs: ${deploymentId}`)
+    const deployment = await this.getDeployment(deploymentId)
+    return deployment.logs || ''
+  }
+
+  async waitForDeployment(
+    deploymentId: string,
+    timeoutSeconds: number = 300,
+    pollIntervalSeconds: number = 5
+  ): Promise<Deployment> {
+    core.info(`⏳ Waiting for deployment to complete (timeout: ${timeoutSeconds}s)`)
+    const startTime = Date.now()
+    const timeoutMs = timeoutSeconds * 1000
+    const pollIntervalMs = pollIntervalSeconds * 1000
+
+    while (true) {
+      const deployment = await this.getDeployment(deploymentId)
+      const status = deployment.status
+
+      if (status === 'completed') {
+        core.info(`✅ Deployment completed successfully`)
+        return deployment
+      }
+
+      if (status === 'failed') {
+        core.error(`❌ Deployment failed`)
+        if (deployment.logs) {
+          core.error('Deployment logs:')
+          core.error(deployment.logs)
+        }
+        throw new Error('Deployment failed - check logs above for details')
+      }
+
+      const elapsed = Date.now() - startTime
+      if (elapsed >= timeoutMs) {
+        throw new Error(
+          `Deployment timeout after ${timeoutSeconds}s (status: ${status})`
+        )
+      }
+
+      core.info(`  Status: ${status} (${Math.round(elapsed / 1000)}s elapsed)`)
+      await sleep(pollIntervalMs)
+    }
   }
 
   // ========================================================================
